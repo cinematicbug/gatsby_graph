@@ -480,7 +480,10 @@
             })
             .catch(function () {
                 var fallback = mergeDynamicCases(expandBackendRows([]));
-                return hydrateAssets(fallback);
+                return hydrateAssets(fallback).then(function (hydrated) {
+                    if (typeof onAsyncUpdate === "function") onAsyncUpdate(hydrated);
+                    return hydrated;
+                });
             });
     }
 

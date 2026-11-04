@@ -611,6 +611,8 @@ draw();
 
   window.GG.load(function (hydratedRows) {
     startHeroRotator(hydratedRows);
+  }).then(function (rows) {
+    startHeroRotator(rows);
   });
 
   function startHeroRotator(rows) {
