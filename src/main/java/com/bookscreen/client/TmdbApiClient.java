@@ -31,7 +31,7 @@ public final class TmdbApiClient {
         );
     }
 
-    private record SearchStub(long tmdbId, String title, int releaseYear, double titleSim) {}
+    private record SearchStub(long tmdbId, String title, int releaseYear, double titleSim, int voteCount) {}
 
     /**
      * Phase B1 + B2: Searches TMDB by normalized book title, applies chronological gate,
@@ -70,10 +70,22 @@ public final class TmdbApiClient {
                 continue;
             }
             double sim = TitleNormalizer.computeTitleSimilarity(bookTitle, title);
-            stubs.add(new SearchStub(tmdbId, title, releaseYear, sim));
+            stubs.add(new SearchStub(tmdbId, title, releaseYear, sim,
+                    item.path("vote_count").asInt(0)));
         }
 
-        stubs.sort(Comparator.comparingDouble(SearchStub::titleSim).reversed());
+        // Best title match first; among equally-named releases prefer the one audiences actually saw,
+        // so a straight-to-video namesake cannot displace the real adaptation.
+        stubs.sort((a, b) -> {
+            int bySim = Double.compare(b.titleSim(), a.titleSim());
+            if (bySim != 0) return bySim;
+            int byCompatibility = Boolean.compare(
+                    TitleNormalizer.isCompatibleTitle(bookTitle, b.title()),
+                    TitleNormalizer.isCompatibleTitle(bookTitle, a.title()));
+            if (byCompatibility != 0) return byCompatibility;
+            return Integer.compare(b.voteCount(), a.voteCount());
+        });
+
         int limit = Math.min(stubs.size(), config.candidateCapPerBook());
 
         List<FilmCandidate> enriched = new ArrayList<>(limit);
@@ -133,13 +145,29 @@ public final class TmdbApiClient {
         List<FilmPayload.CrewCredit> writingCredits = extractWritingCredits(node.path("credits").path("crew"));
         List<String> keywords = extractKeywords(node.path("keywords").path("keywords"));
 
+        String posterPath = trimToNull(node.path("poster_path").asText(""));
+        String director = trimToNull(extractDirector(node.path("credits").path("crew")));
+
+        JsonNode collection = node.path("belongs_to_collection");
+        Long collectionId = null;
+        String collectionName = null;
+        if (collection.isObject()) {
+            long rawCollectionId = collection.path("id").asLong(0L);
+            collectionId = rawCollectionId > 0L ? rawCollectionId : null;
+            collectionName = trimToNull(collection.path("name").asText(""));
+        }
+
         FilmPayload payload = new FilmPayload(
                 tmdbId,
                 title,
                 releaseYear,
                 overview,
                 writingCredits,
-                keywords
+                keywords,
+                posterPath,
+                director,
+                collectionId,
+                collectionName
         );
 
         return new FilmCandidate(
@@ -189,7 +217,11 @@ public final class TmdbApiClient {
                     }
                     BigDecimal score = BigDecimal.valueOf(item.path("vote_average").asDouble(0.0))
                             .setScale(1, RoundingMode.HALF_UP);
-                    FilmPayload stubPayload = new FilmPayload(id, title, year, item.path("overview").asText(""), List.of(), List.of());
+                    FilmPayload stubPayload = new FilmPayload(
+                            id, title, year, item.path("overview").asText(""),
+                            List.of(), List.of(),
+                            trimToNull(item.path("poster_path").asText("")),
+                            null, null, null);
                     deduped.putIfAbsent(id, new FilmCandidate(id, null, title, year, null, null, null, score, votes, stubPayload));
                 }
             }
@@ -216,6 +248,27 @@ public final class TmdbApiClient {
             }
         }
         return credits;
+    }
+
+    private static String extractDirector(JsonNode crewArray) {
+        if (crewArray == null || !crewArray.isArray()) {
+            return null;
+        }
+        for (JsonNode c : crewArray) {
+            if ("Director".equalsIgnoreCase(c.path("job").asText(""))) {
+                String name = c.path("name").asText("").trim();
+                if (!name.isEmpty()) {
+                    return name;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() || "null".equalsIgnoreCase(trimmed) ? null : trimmed;
     }
 
     private static List<String> extractKeywords(JsonNode kwArray) {

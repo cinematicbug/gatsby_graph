@@ -8,7 +8,8 @@ public record BookPayload(
         Integer firstPublishYear,
         Integer earliestEditionYear,
         List<String> authorNames,
-        String description
+        String description,
+        Integer coverId
 ) {
     public Integer effectivePublishYear() {
         return firstPublishYear != null ? firstPublishYear : earliestEditionYear;

@@ -17,6 +17,8 @@ public record ResolvedLink(
             double keywordSignalK,
             double plotOverlapP,
             boolean chronologicalGatePassed,
+            boolean titleCompatible,
+            boolean seriesTitleMatch,
             Integer effectiveBookYear,
             int filmReleaseYear
     ) {}

@@ -8,7 +8,11 @@ public record FilmPayload(
         int releaseYear,
         String overview,
         List<CrewCredit> writingCredits,
-        List<String> keywords
+        List<String> keywords,
+        String posterPath,
+        String director,
+        Long collectionId,
+        String collectionName
 ) {
     public record CrewCredit(
             String name,

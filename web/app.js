@@ -204,7 +204,7 @@
             list.innerHTML = out.map(function (r) {
                 var t = tone(r.category);
                 var initial = escapeHtml((r.bookTitle || "G").charAt(0).toUpperCase());
-                var imgUrl = r.cover || r.poster;
+                var imgUrl = r.cover;
                 var thumb = imgUrl
                     ? '<span class="thumb"><img src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
                     : '<span class="thumb thumb--empty" aria-hidden="true">' + initial + "</span>";
@@ -330,7 +330,7 @@
                 ? '<img src="' + escapeHtml(current.cover) + '" width="317" height="500" alt="Cover of ' + escapeHtml(current.bookTitle) + '" data-fallback-title="' + escapeHtml(current.bookTitle) + '" data-fallback-aspect="317/500" data-fallback-color="var(--type-70)">'
                 : '<div style="aspect-ratio:317/500;display:grid;place-items:center;padding:24px;text-align:center;font-family:var(--display);font-size:26px;color:var(--type-70)">' + escapeHtml(current.bookTitle) + "</div>";
 
-            var posterUrl = current.poster || current.cover;
+            var posterUrl = current.poster;
             var filmImgHtml = posterUrl
                 ? '<img src="' + escapeHtml(posterUrl) + '" width="259" height="384" alt="Poster for ' + escapeHtml(current.filmTitle) + '" data-fallback-title="' + escapeHtml(current.filmTitle) + '" data-fallback-aspect="259/384" data-fallback-color="var(--support)">'
                 : '<div style="aspect-ratio:259/384;display:grid;place-items:center;padding:24px;text-align:center;font-family:var(--display);font-size:26px;color:var(--support)">' + escapeHtml(current.filmTitle) + "</div>";
@@ -434,7 +434,7 @@
             nextList.innerHTML = others.map(function (r) {
                 var t = tone(r.category);
                 var initial = escapeHtml((r.bookTitle || "G").charAt(0).toUpperCase());
-                var imgUrl = r.cover || r.poster;
+                var imgUrl = r.cover;
                 var thumb = imgUrl
                     ? '<span class="thumb"><img src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
                     : '<span class="thumb thumb--empty">' + initial + "</span>";

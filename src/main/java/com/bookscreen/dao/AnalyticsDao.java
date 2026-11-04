@@ -165,31 +165,29 @@ public final class AnalyticsDao {
     public List<WebCaseDto> fetchWebCases(com.fasterxml.jackson.databind.ObjectMapper mapper) throws SQLException {
         String sql = """
             SELECT s.link_id, s.book_title,
-                   COALESCE(best_fa.title, s.film_title) AS film_title,
+                   s.film_title AS film_title,
                    s.adaptation_delay_years,
                    s.pages_per_minute, s.book_rank, s.film_rank, s.rank_divergence,
                    s.gross_multiple, s.gross_adj_usd, s.book_reliability, s.divergence_category,
-                   (SELECT MIN(sb2.first_publish_year)
-                      FROM source_books sb2
-                     WHERE (LOWER(sb2.title) LIKE CONCAT('%', LOWER(sb.title), '%')
-                        OR LOWER(sb.title) LIKE CONCAT('%', LOWER(sb2.title), '%'))
-                       AND sb2.first_publish_year IS NOT NULL
-                       AND sb2.first_publish_year > 1500) AS earliest_book_year,
-                   sb.first_publish_year,
-                   COALESCE(best_fa.release_year, fa.release_year) AS film_year,
+                   COALESCE(sb.first_publish_year,
+                            (SELECT MIN(be.publish_year) FROM book_editions be
+                              WHERE be.book_id = sb.book_id)) AS book_year,
+                   fa.release_year AS film_year,
                    sb.page_count_median,
-                   sb.ratings_average AS ol_rating,
-                   sb.ratings_count   AS ol_votes,
-                   sb.isbn_13,
-                   COALESCE(best_fa.runtime_minutes, fa.runtime_minutes) AS runtime_minutes,
-                   COALESCE(best_fa.tmdb_rating, fa.tmdb_rating) AS tmdb_rating,
-                   COALESCE(best_fa.tmdb_vote_count, fa.tmdb_vote_count) AS tmdb_vote_count,
-                   COALESCE(best_fa.revenue_usd, fa.revenue_usd) AS revenue_usd,
-                   COALESCE(best_fa.budget_usd, fa.budget_usd) AS budget_usd,
+                   sb.avg_rating_5   AS ol_rating,
+                   sb.ratings_count  AS ol_votes,
+                   (SELECT be.isbn_13 FROM book_editions be
+                     WHERE be.book_id = sb.book_id AND be.isbn_13 IS NOT NULL
+                     LIMIT 1) AS isbn_13,
+                   fa.runtime_minutes,
+                   fa.tmdb_score_10     AS tmdb_rating,
+                   fa.tmdb_vote_count,
+                   fa.box_office_gross  AS revenue_usd,
+                   fa.production_budget AS budget_usd,
                    l.match_confidence,
                    l.link_status,
                    sb.ol_payload,
-                   COALESCE(best_fa.tmdb_payload, fa.tmdb_payload) AS tmdb_payload,
+                   fa.tmdb_payload,
                    (SELECT a.full_name FROM book_authors ba
                       JOIN authors a ON a.author_id = ba.author_id
                      WHERE ba.book_id = sb.book_id
@@ -198,18 +196,10 @@ public final class AnalyticsDao {
               JOIN source_books sb     ON sb.book_id  = s.book_id
               JOIN film_adaptations fa ON fa.movie_id = s.movie_id
               JOIN adaptation_links l  ON l.link_id   = s.link_id
-              LEFT JOIN film_adaptations best_fa ON best_fa.movie_id = (
-                  SELECT fa2.movie_id
-                    FROM film_adaptations fa2
-                   WHERE LOWER(fa2.title) = LOWER(s.book_title)
-                      OR LOWER(fa2.title) = LOWER(s.film_title)
-                   ORDER BY COALESCE(fa2.tmdb_vote_count, 0) DESC
-                   LIMIT 1
-              )
-             ORDER BY COALESCE(best_fa.tmdb_vote_count, fa.tmdb_vote_count, 0) DESC,
+             ORDER BY (l.link_status = 'ACCEPTED') DESC,
                       l.match_confidence DESC,
-                      COALESCE(sb.ratings_count, 0) DESC,
-                      COALESCE(sb.first_publish_year, 9999) ASC
+                      COALESCE(fa.tmdb_vote_count, 0) DESC,
+                      COALESCE(sb.ratings_count, 0) DESC
             """;
 
         List<WebCaseDto> out = new ArrayList<>();
@@ -298,10 +288,6 @@ public final class AnalyticsDao {
                     }
                 } catch (Exception ignored) {}
 
-                if (coverUrl == null && posterUrl != null) {
-                    coverUrl = posterUrl;
-                }
-
                 // Compute Book Percentile Rank (from snapshot, or DB column, or JSON payload)
                 BigDecimal snapBookRank = rs.getBigDecimal("book_rank");
                 double bRank;
@@ -340,11 +326,13 @@ public final class AnalyticsDao {
                 else if (divPts < -2) category = "FILM_OUTRANKS_BOOK";
                 else category = "ALIGNED";
 
-                int earliestYear = rs.getInt("earliest_book_year");
-                int firstPubYear = rs.getInt("first_publish_year");
                 int filmYear = rs.getInt("film_year");
-                int bookYear = earliestYear > 0 ? earliestYear : (firstPubYear > 0 ? firstPubYear : filmYear);
-                if (bookYear > filmYear) bookYear = filmYear;
+                // The snapshot only keeps links whose book year is known, so this is the canonical
+                // year resolved at ingestion time rather than a guess made at render time.
+                int bookYear = rs.getInt("book_year");
+                if (rs.wasNull() || bookYear <= 0) {
+                    bookYear = filmYear;
+                }
                 int delayYears = Math.max(0, filmYear - bookYear);
 
                 int pages = rs.getInt("page_count_median");
