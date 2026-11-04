@@ -545,3 +545,173 @@ draw();
 
 
 
+
+/* ==========================================================================
+   Gatsby Graph — Lockstep Preloaded Hero Showcase (Zero Lag Between Book & Film)
+   ========================================================================== */
+(function () {
+  "use strict";
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+  var plate = document.querySelector(".plate");
+  if (plate) {
+    plate.addEventListener("pointermove", function (e) {
+      var r = plate.getBoundingClientRect();
+      plate.style.setProperty("--spot-x", (((e.clientX - r.left) / r.width) * 100).toFixed(1) + "%");
+      plate.style.setProperty("--spot-y", (((e.clientY - r.top) / r.height) * 100).toFixed(1) + "%");
+    });
+  }
+
+  var seekForm = document.querySelector("form.seek");
+  if (!seekForm || !plate || !window.GG || typeof window.GG.load !== "function") return;
+
+  var rotatorStarted = false;
+
+  function fmtSigned(n) {
+    var v = Math.round(n);
+    return v > 0 ? "+" + v : (v < 0 ? "\u2212" + Math.abs(v) : "0");
+  }
+
+  function ord(n) {
+    var s = ["th", "st", "nd", "rd"], v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  }
+
+  /* Preloads and decodes an image in memory BEFORE any DOM swap happens */
+  function preloadImage(url) {
+    return new Promise(function (resolve) {
+      if (!url) { resolve(false); return; }
+      var img = new Image();
+      img.referrerPolicy = "no-referrer";
+      img.onload = function () {
+        if (typeof img.decode === "function") {
+          img.decode().then(function () { resolve(true); }).catch(function () { resolve(true); });
+        } else {
+          resolve(true);
+        }
+      };
+      img.onerror = function () { resolve(false); };
+      img.src = url;
+    });
+  }
+
+  function animateValue(el, fromVal, toVal, dur) {
+    if (!el) return;
+    var t0 = null;
+    requestAnimationFrame(function step(ts) {
+      if (t0 === null) t0 = ts;
+      var p = Math.min((ts - t0) / dur, 1);
+      var eased = 1 - Math.pow(1 - p, 3);
+      var cur = fromVal + (toVal - fromVal) * eased;
+      el.textContent = fmtSigned(cur);
+      if (p < 1) requestAnimationFrame(step);
+      else el.textContent = fmtSigned(toVal);
+    });
+  }
+
+  window.GG.load(function (hydratedRows) {
+    startHeroRotator(hydratedRows);
+  });
+
+  function startHeroRotator(rows) {
+    if (rotatorStarted || !rows || !rows.length) return;
+
+    /* Pick distinct books that have both cover and poster URLs */
+    var seenBooks = {};
+    var showcase = [];
+    rows.forEach(function (r) {
+      if (r.cover && r.poster && !seenBooks[r.bookTitle]) {
+        seenBooks[r.bookTitle] = true;
+        showcase.push(r);
+      }
+    });
+    if (showcase.length < 2) return;
+    rotatorStarted = true;
+
+    var bookImg = document.querySelector(".obj--book img");
+    var filmImg = document.querySelector(".obj--film img");
+    var bookCap = document.querySelector(".obj--book figcaption");
+    var filmCap = document.querySelector(".obj--film figcaption");
+    var countEl = document.querySelector("[data-count]");
+    var verdictSum = document.querySelector(".verdict__sum");
+    var verdictLink = document.querySelector('.verdict a[href*="case"]');
+    var heroContainer = plate.closest(".hero") || document.body;
+
+    if (bookImg) bookImg.referrerPolicy = "no-referrer";
+    if (filmImg) filmImg.referrerPolicy = "no-referrer";
+
+    var currentIdx = 0;
+    var currentDiv = countEl ? parseFloat(countEl.textContent.replace("\u2212", "-")) || -3 : -3;
+    var paused = false;
+    var transitioning = false;
+
+    plate.addEventListener("pointerenter", function () { paused = true; });
+    plate.addEventListener("pointerleave", function () { paused = false; });
+
+    function transitionTo(nextCase) {
+      if (transitioning || !nextCase) return;
+      transitioning = true;
+
+      /* 1. Preload BOTH images completely in memory first so there is zero lag between book and movie */
+      Promise.all([
+        preloadImage(nextCase.cover),
+        preloadImage(nextCase.poster)
+      ]).then(function (ok) {
+        if (!ok[0] || !ok[1]) {
+          transitioning = false;
+          return;
+        }
+
+        /* 2. Fade out both frames + captions + verdict in lockstep */
+        heroContainer.classList.add("hero-fading");
+
+        setTimeout(function () {
+          var bPct = Math.round((nextCase.bookRank || 0.85) * 100);
+          var fPct = Math.round((nextCase.filmRank || 0.80) * 100);
+
+          if (bookImg) {
+            bookImg.src = nextCase.cover;
+            bookImg.alt = "Cover of " + nextCase.bookTitle;
+          }
+          if (filmImg) {
+            filmImg.src = nextCase.poster;
+            filmImg.alt = "Poster for " + nextCase.filmTitle;
+          }
+          if (bookCap) {
+            bookCap.textContent = nextCase.bookTitle + " \u00b7 " + nextCase.bookYear + " \u00b7 " + ord(bPct) + " pct";
+          }
+          if (filmCap) {
+            filmCap.textContent = nextCase.filmTitle + " \u00b7 " + nextCase.filmYear + " \u00b7 " + ord(fPct) + " pct";
+          }
+          if (verdictSum) {
+            var bookWins = nextCase.divergence >= 0;
+            var headline = bookWins ? "The book ranks higher" : "The film ranks higher";
+            var hiPct = bookWins ? ord(bPct) : ord(fPct);
+            var loPct = bookWins ? ord(fPct) : ord(bPct);
+            verdictSum.innerHTML = "<b>" + headline + "</b> \u2014 " + hiPct + " percentile against " + loPct;
+          }
+          if (verdictLink) {
+            verdictLink.href = "case.html?id=" + nextCase.linkId;
+            verdictLink.textContent = "Open the " + nextCase.bookTitle + " case file \u2192";
+          }
+
+          /* 3. Wait one animation frame for DOM src swap, then fade both back in together */
+          requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+              heroContainer.classList.remove("hero-fading");
+              animateValue(countEl, currentDiv, nextCase.divergence, 650);
+              currentDiv = nextCase.divergence;
+              setTimeout(function () { transitioning = false; }, 600);
+            });
+          });
+        }, 480);
+      });
+    }
+
+    setInterval(function () {
+      if (paused || transitioning) return;
+      currentIdx = (currentIdx + 1) % Math.min(showcase.length, 6);
+      transitionTo(showcase[currentIdx]);
+    }, 6000);
+  }
+})();

@@ -503,3 +503,67 @@ html.js .reveal.in{opacity:1;transform:none}
 /* Prevent flash of hardcoded Dune template on /case */
 body:has(.casehero):not(.case-loaded) main { opacity: 0; }
 body:has(.casehero).case-loaded main { opacity: 1; transition: opacity 0.15s ease; }
+
+/* ==========================================================================
+   Gatsby Graph — Smooth Hero Float & Synchronized Crossfade (No Ticker)
+   ========================================================================== */
+body:has(.casehero):not(.case-loaded) main { opacity: 0; }
+body:has(.casehero).case-loaded main { opacity: 1; transition: opacity 0.18s ease; }
+
+@keyframes gg-float-book {
+  0%, 100% { transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(-2.5deg); }
+  50%      { transform: translate3d(var(--px, 0px), calc(var(--py, 0px) - 8px), 0) rotate(-1.4deg); }
+}
+@keyframes gg-float-film {
+  0%, 100% { transform: translate3d(var(--px, 0px), var(--py, 0px), 0) rotate(2.5deg); }
+  50%      { transform: translate3d(var(--px, 0px), calc(var(--py, 0px) + 8px), 0) rotate(3.6deg); }
+}
+
+.plate {
+  position: relative;
+}
+.plate::before {
+  content: "";
+  position: absolute;
+  inset: -10% -6%;
+  background: radial-gradient(
+    380px circle at var(--spot-x, 50%) var(--spot-y, 50%),
+    rgba(232, 93, 52, 0.13),
+    rgba(92, 164, 169, 0.08) 45%,
+    transparent 72%
+  );
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.4s ease;
+}
+
+.obj--book {
+  animation: gg-float-book 7s ease-in-out infinite;
+  will-change: transform;
+}
+.obj--film {
+  animation: gg-float-film 7.8s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Smooth synchronized crossfade for both frames + captions + verdict */
+.obj__frame img,
+.obj figcaption,
+.verdict {
+  transition:
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform, filter;
+}
+
+.hero-fading .obj__frame img {
+  opacity: 0;
+  transform: scale(0.965) translateY(6px);
+  filter: blur(4px);
+}
+.hero-fading .obj figcaption,
+.hero-fading .verdict {
+  opacity: 0;
+  transform: translateY(4px);
+}
