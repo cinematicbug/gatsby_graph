@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    Gatsby Graph — shared behaviour
    Motion, fuzzy search routing, live ingestion button, image fallbacks,
    and dynamic case view.
@@ -163,9 +163,9 @@
                 window.GG.load().then(function (rows) {
                     var matches = rows.filter(function (r) { return matchesQuery(r, raw); });
                     if (matches.length === 1) {
-                        window.location.href = "/case?id=" + matches[0].linkId;
+                        window.location.href = "case.html?id=" + matches[0].linkId;
                     } else {
-                        window.location.href = "/cases?q=" + encodeURIComponent(raw);
+                        window.location.href = "cases.html?q=" + encodeURIComponent(raw);
                     }
                 });
             });
@@ -233,7 +233,7 @@
                     ? '<span class="thumb"><img referrerpolicy="no-referrer" src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
                     : '<span class="thumb thumb--empty" aria-hidden="true">' + initial + "</span>";
                 return (
-                    '<li><a class="row" href="/case?id=' + r.linkId + '">' +
+                    '<li><a class="row" href="case.html?id=' + r.linkId + '">' +
                     thumb +
                     '<span class="row__body">' +
                     '<span class="row__title">' + escapeHtml(r.bookTitle) + "</span>" +
@@ -358,7 +358,7 @@ draw();
         list.innerHTML = sorted.map(function (r) {
             var t = tone(r.category);
             return (
-                '<a class="rank" href="/case?id=' + r.linkId + '">' +
+                '<a class="rank" href="case.html?id=' + r.linkId + '">' +
                 '<span class="rank__title">' + escapeHtml(r.bookTitle) +
                 "<small>" + r.filmYear + "</small></span>" +
                 axis(r.bookRank, r.filmRank, r.category) +
@@ -511,7 +511,7 @@ draw();
                     ? '<span class="thumb"><img referrerpolicy="no-referrer" src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
                     : '<span class="thumb thumb--empty">' + initial + "</span>";
                 return (
-                    '<li><a class="row" href="/case?id=' + r.linkId + '">' +
+                    '<li><a class="row" href="case.html?id=' + r.linkId + '">' +
                     thumb +
                     '<span class="row__body">' +
                     '<span class="row__title">' + escapeHtml(r.bookTitle) + "</span>" +

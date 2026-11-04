@@ -1,4 +1,4 @@
-﻿/* ==========================================================================
+/* ==========================================================================
    Gatsby Graph — Multi-Adaptation Engine
    Resolves ALL distinct screen adaptations per book with:
    1. Live OpenLibrary Cover Resolution by exact (Title + Author) — zero guessed IDs

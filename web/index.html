@@ -16,7 +16,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1&family=Inter+Tight:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
@@ -24,11 +24,11 @@
 
 <div class="wrap">
     <header class="masthead">
-        <a class="wordmark" href="/"><i aria-hidden="true"></i>Gatsby Graph</a>
+        <a class="wordmark" href="index.html"><i aria-hidden="true"></i>Gatsby Graph</a>
         <nav class="nav" aria-label="Primary">
-            <a href="/cases">Case files</a>
-            <a href="/rankings">Rankings</a>
-            <a href="/method">Method</a>
+            <a href="cases.html">Case files</a>
+            <a href="rankings.html">Rankings</a>
+            <a href="method.html">Method</a>
         </nav>
     </header>
 
@@ -43,7 +43,7 @@
 
                 <p class="sub">We score books against their film adaptations, so you know which one deserves your evening.</p>
 
-                <form class="seek" action="/cases" method="get" role="search">
+                <form class="seek" action="cases.html" method="get" role="search">
                     <label for="q">Compare a book</label>
                     <div class="seek__row">
                         <input id="q" name="q" type="search" placeholder="Try Dune or War of the Worlds" autocomplete="off" spellcheck="false">
@@ -61,7 +61,7 @@
                     </p>
                     <div class="verdict__meta">
                         <p class="verdict__line">The film ranks higher <span>&mdash; 91st percentile against 88th</span></p>
-                        <a class="verdict__link" href="/case?id=108">
+                        <a class="verdict__link" href="case.html?id=108">
                             Open the Dune case file
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
                                 <path d="M4 12h15M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
@@ -102,7 +102,7 @@
 
         <section class="doors reveal" aria-label="Elsewhere">
             <div class="doors__grid">
-                <a class="door" href="/cases">
+                <a class="door" href="cases.html">
                     <span class="door__num">01</span>
                     <span class="door__title">The case files</span>
                     <span class="door__desc">Every book we've put against its film.</span>
@@ -111,7 +111,7 @@
                     </svg>
                     <span class="door__rule" aria-hidden="true"></span>
                 </a>
-                <a class="door" href="/rankings">
+                <a class="door" href="rankings.html">
                     <span class="door__num">02</span>
                     <span class="door__title">The rankings</span>
                     <span class="door__desc">Every gap on one scale.</span>
@@ -120,7 +120,7 @@
                     </svg>
                     <span class="door__rule" aria-hidden="true"></span>
                 </a>
-                <a class="door" href="/method">
+                <a class="door" href="method.html">
                     <span class="door__num">03</span>
                     <span class="door__title">The method</span>
                     <span class="door__desc">Where the numbers come from.</span>
@@ -144,7 +144,7 @@
     </footer>
 </div>
 
-<script src="/data.js"></script>
-<script src="/app.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
 </body>
 </html>
