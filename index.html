@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gatsby Graph — same story, two versions, one verdict</title>
+    <meta name="description" content="We score books against their film adaptations, so you know which one deserves your evening.">
+    <meta name="color-scheme" content="dark">
+    <script>
+        document.documentElement.classList.add('js');
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() { document.body.classList.add('is-ready'); }, 50);
+        });
+    </script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230B0A0E'/%3E%3Cpath d='M9 23V9l14 14V9' stroke='%23F4F1EA' stroke-width='2.2' fill='none'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1&family=Inter+Tight:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="wrap">
+    <header class="masthead">
+        <a class="wordmark" href="/"><i aria-hidden="true"></i>Gatsby Graph</a>
+        <nav class="nav" aria-label="Primary">
+            <a href="/cases">Case files</a>
+            <a href="/rankings">Rankings</a>
+            <a href="/method">Method</a>
+        </nav>
+    </header>
+
+    <main id="main">
+        <section class="hero" aria-labelledby="h">
+            <div class="copy">
+                <h1 id="h">
+                    <span class="line"><span>Same story.</span></span>
+                    <span class="line"><span>Two versions.</span></span>
+                    <span class="line"><span><em>One</em> verdict.</span></span>
+                </h1>
+
+                <p class="sub">We score books against their film adaptations, so you know which one deserves your evening.</p>
+
+                <form class="seek" action="/cases" method="get" role="search">
+                    <label for="q">Compare a book</label>
+                    <div class="seek__row">
+                        <input id="q" name="q" type="search" placeholder="Try Dune or War of the Worlds" autocomplete="off" spellcheck="false">
+                        <button type="submit" aria-label="Compare">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                                <path d="M4 12h15M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+
+                <div class="verdict">
+                    <p class="verdict__num verdict__num--film">
+                        <span data-count="-3">&minus;3</span><span class="verdict__unit">pts</span>
+                    </p>
+                    <div class="verdict__meta">
+                        <p class="verdict__line">The film ranks higher <span>&mdash; 91st percentile against 88th</span></p>
+                        <a class="verdict__link" href="/case?id=108">
+                            Open the Dune case file
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                                <path d="M4 12h15M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </a>
+                    </div>
+                    <div class="axis" style="--gap:var(--support)" aria-hidden="true">
+                        <span class="axis__line"></span>
+                        <span class="axis__gap" style="left:88%;width:3%"></span>
+                        <span class="axis__dot axis__dot--book" style="left:88%"></span>
+                        <span class="axis__dot axis__dot--film" style="left:91%"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="plate" aria-label="Dune, the 1965 novel and the 2021 film">
+                <div class="disc" aria-hidden="true"></div>
+                <div class="orbit" aria-hidden="true"></div>
+
+                <figure class="obj obj--book">
+                    <div class="obj__frame">
+                        <span class="obj__spine" aria-hidden="true"></span>
+                        <img src="https://covers.openlibrary.org/b/id/11481354-L.jpg" width="317" height="500"
+                             alt="Cover of Dune by Frank Herbert, 1965">
+                    </div>
+                    <figcaption>Dune · 1965 · 88th pct</figcaption>
+                </figure>
+
+                <figure class="obj obj--film">
+                    <div class="obj__frame">
+                        <img src="https://image.tmdb.org/t/p/w500/d5NXSklXo0qyIYkgV94XAgMIckC.jpg" width="259" height="384"
+                             alt="Poster for Dune, directed by Denis Villeneuve, 2021">
+                    </div>
+                    <figcaption>Dune · 2021 · 91st pct</figcaption>
+                </figure>
+            </div>
+        </section>
+
+        <section class="doors reveal" aria-label="Elsewhere">
+            <div class="doors__grid">
+                <a class="door" href="/cases">
+                    <span class="door__num">01</span>
+                    <span class="door__title">The case files</span>
+                    <span class="door__desc">Every book we've put against its film.</span>
+                    <svg class="door__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                        <path d="M4 12h15M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="door__rule" aria-hidden="true"></span>
+                </a>
+                <a class="door" href="/rankings">
+                    <span class="door__num">02</span>
+                    <span class="door__title">The rankings</span>
+                    <span class="door__desc">Every gap on one scale.</span>
+                    <svg class="door__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                        <path d="M4 12h15M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="door__rule" aria-hidden="true"></span>
+                </a>
+                <a class="door" href="/method">
+                    <span class="door__num">03</span>
+                    <span class="door__title">The method</span>
+                    <span class="door__desc">Where the numbers come from.</span>
+                    <svg class="door__arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+                        <path d="M4 12h15M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span class="door__rule" aria-hidden="true"></span>
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <footer class="foot">
+        <div class="foot__row">
+            <p><span class="foot__brand">Gatsby Graph</span> — a book-to-screen arbitrage index.</p>
+            <p>
+                Covers: <a href="https://openlibrary.org" rel="noopener">OpenLibrary</a> ·
+                Ratings: <a href="https://www.themoviedb.org" rel="noopener">TMDB</a>
+            </p>
+        </div>
+    </footer>
+</div>
+
+<script src="/data.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

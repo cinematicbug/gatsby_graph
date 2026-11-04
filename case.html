@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dune — case file 108 — Gatsby Graph</title>
+    <meta name="description" content="Two percentile ranks and the gap between them.">
+    <meta name="color-scheme" content="dark">
+    <script>
+        document.documentElement.classList.add('js');
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() { document.body.classList.add('is-ready'); }, 50);
+        });
+    </script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230B0A0E'/%3E%3Cpath d='M9 23V9l14 14V9' stroke='%23F4F1EA' stroke-width='2.2' fill='none'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1&family=Inter+Tight:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="wrap">
+    <header class="masthead">
+        <a class="wordmark" href="/"><i aria-hidden="true"></i>Gatsby Graph</a>
+        <nav class="nav" aria-label="Primary">
+            <a href="/cases" aria-current="page">Case files</a>
+            <a href="/rankings">Rankings</a>
+            <a href="/method">Method</a>
+        </nav>
+    </header>
+
+    <main id="main">
+        <a class="crumb" href="/cases">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                <path d="M20 12H5M11 18l-6-6 6-6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            All case files
+        </a>
+
+        <div class="casehead">
+            <h1>Dune</h1>
+            <p class="byline">Frank Herbert, 1965 <b>&rarr;</b> Denis Villeneuve, 2021</p>
+        </div>
+
+        <section class="casehero" aria-label="Verdict">
+            <div class="pair">
+                <figure>
+                    <div class="obj__frame">
+                        <img src="https://covers.openlibrary.org/b/id/11481354-L.jpg" width="317" height="500" alt="Cover of Dune by Frank Herbert, 1965">
+                    </div>
+                    <figcaption>1965 · 88th percentile</figcaption>
+                </figure>
+                <figure>
+                    <div class="obj__frame">
+                        <img src="https://image.tmdb.org/t/p/w500/d5NXSklXo0qyIYkgV94XAgMIckC.jpg" width="259" height="384" alt="Poster for Dune, directed by Denis Villeneuve, 2021">
+                    </div>
+                    <figcaption>2021 · 91st percentile</figcaption>
+                </figure>
+            </div>
+
+            <div class="panel">
+                <p class="panel__num panel__num--film">
+                    <span data-count="-3">&minus;3</span><span class="verdict__unit">pts</span>
+                </p>
+                <p class="panel__verdict">The film ranks higher<span>91st percentile against the book's 88th</span></p>
+
+                <div class="rates">
+                    <div class="rate">
+                        <span>Book</span><b>88th</b>
+                        <span class="rate__bar"><i style="width:88%"></i></span>
+                    </div>
+                    <div class="rate rate--film">
+                        <span>Film</span><b>91st</b>
+                        <span class="rate__bar"><i style="width:91%"></i></span>
+                    </div>
+                </div>
+
+                <div class="axis" style="--gap:var(--support);margin-top:26px" aria-hidden="true">
+                    <span class="axis__line"></span>
+                    <span class="axis__gap" style="left:88%;width:3%"></span>
+                    <span class="axis__dot axis__dot--book" style="left:88%"></span>
+                    <span class="axis__dot axis__dot--film" style="left:91%"></span>
+                    <span class="axis__scale"><span>0</span><span>50</span><span>100th</span></span>
+                </div>
+
+                <p class="note" style="margin-top:26px">Matched to the 2021 film at 98% confidence.</p>
+            </div>
+        </section>
+
+        <section class="stats" aria-label="The other numbers">
+            <div class="stat">
+                <div class="stat__num">56<small>yrs</small></div>
+                <span class="stat__label">from publication to screen</span>
+            </div>
+            <div class="stat">
+                <div class="stat__num">2.7<small>/min</small></div>
+                <span class="stat__label">pages of prose per minute of film</span>
+            </div>
+            <div class="stat">
+                <div class="stat__num">2.4<small>&times;</small></div>
+                <span class="stat__label">box office against production budget</span>
+            </div>
+            <div class="stat">
+                <div class="stat__num">412<small>p</small></div>
+                <span class="stat__label">into 155 minutes of runtime</span>
+            </div>
+        </section>
+
+        <div class="blocks">
+            <div class="block">
+                <div class="block__k"><span>Reading</span>What the gap means</div>
+                <div class="block__v">
+                    <p>Both versions are near the top of their leagues: the novel sits above 88% of books, the film above 91% of films. Three points is a small gap, and it is the sort that matters least — a dead heat with a thumb on the scale.</p>
+                    <p>Fifty-six years separate them, and most of what the film leaves out it replaces with weather, scale and silence. That is a legitimate trade, not a loss. The number only says which crowd is more convinced.</p>
+                </div>
+            </div>
+        </div>
+
+        <section aria-label="Next cases" style="padding-block:clamp(32px,5vh,56px)">
+            <ul class="rows"></ul>
+        </section>
+    </main>
+
+    <footer class="foot">
+        <div class="foot__row">
+            <p><span class="foot__brand">Gatsby Graph</span> — a book-to-screen arbitrage index.</p>
+            <p>Covers: <a href="https://openlibrary.org" rel="noopener">OpenLibrary</a> · Ratings: <a href="https://www.themoviedb.org" rel="noopener">TMDB</a></p>
+        </div>
+    </footer>
+</div>
+
+<script src="/data.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
