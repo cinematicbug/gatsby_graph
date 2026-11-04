@@ -7,8 +7,11 @@ import com.bookscreen.model.SnapshotRow;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
+@SuppressWarnings({"SqlResolve", "SqlNoDataSourceInspection"})
 public final class AnalyticsDao {
 
     public record ReviewQueueItem(
@@ -17,6 +20,32 @@ public final class AnalyticsDao {
             String filmTitle,
             BigDecimal matchConfidence,
             String evidenceJson
+    ) {}
+
+    public record WebCaseDto(
+            long linkId,
+            String slug,
+            String bookTitle,
+            String filmTitle,
+            String authorName,
+            String directorName,
+            int bookYear,
+            int filmYear,
+            double bookRank,
+            double filmRank,
+            int divergence,
+            String category,
+            int delayYears,
+            Integer pageCount,
+            Integer runtimeMinutes,
+            Double pagesPerMinute,
+            Double grossMultiple,
+            Long grossAdjUsd,
+            String bookReliability,
+            double matchConfidence,
+            boolean review,
+            String cover,
+            String poster
     ) {}
 
     private final DatabaseConfig dbConfig;
@@ -42,7 +71,7 @@ public final class AnalyticsDao {
         List<SnapshotRow> rows = new ArrayList<>();
         try (Connection conn = dbConfig.openAutoCommitConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setQueryTimeout(60); // Section 7.4 reader cap
+            ps.setQueryTimeout(60);
             ps.setString(1, category.name());
             ps.setInt(2, limit);
             try (ResultSet rs = ps.executeQuery()) {
@@ -131,5 +160,248 @@ public final class AnalyticsDao {
                 baseVerObj,
                 refreshed != null ? refreshed.toInstant() : null
         );
+    }
+
+    public List<WebCaseDto> fetchWebCases(com.fasterxml.jackson.databind.ObjectMapper mapper) throws SQLException {
+        String sql = """
+            SELECT s.link_id, s.book_title,
+                   COALESCE(best_fa.title, s.film_title) AS film_title,
+                   s.adaptation_delay_years,
+                   s.pages_per_minute, s.book_rank, s.film_rank, s.rank_divergence,
+                   s.gross_multiple, s.gross_adj_usd, s.book_reliability, s.divergence_category,
+                   (SELECT MIN(sb2.first_publish_year)
+                      FROM source_books sb2
+                     WHERE (LOWER(sb2.title) LIKE CONCAT('%', LOWER(sb.title), '%')
+                        OR LOWER(sb.title) LIKE CONCAT('%', LOWER(sb2.title), '%'))
+                       AND sb2.first_publish_year IS NOT NULL
+                       AND sb2.first_publish_year > 1500) AS earliest_book_year,
+                   sb.first_publish_year,
+                   COALESCE(best_fa.release_year, fa.release_year) AS film_year,
+                   sb.page_count_median,
+                   sb.ratings_average AS ol_rating,
+                   sb.ratings_count   AS ol_votes,
+                   sb.isbn_13,
+                   COALESCE(best_fa.runtime_minutes, fa.runtime_minutes) AS runtime_minutes,
+                   COALESCE(best_fa.tmdb_rating, fa.tmdb_rating) AS tmdb_rating,
+                   COALESCE(best_fa.tmdb_vote_count, fa.tmdb_vote_count) AS tmdb_vote_count,
+                   COALESCE(best_fa.revenue_usd, fa.revenue_usd) AS revenue_usd,
+                   COALESCE(best_fa.budget_usd, fa.budget_usd) AS budget_usd,
+                   l.match_confidence,
+                   l.link_status,
+                   sb.ol_payload,
+                   COALESCE(best_fa.tmdb_payload, fa.tmdb_payload) AS tmdb_payload,
+                   (SELECT a.full_name FROM book_authors ba
+                      JOIN authors a ON a.author_id = ba.author_id
+                     WHERE ba.book_id = sb.book_id
+                     ORDER BY ba.author_order ASC LIMIT 1) AS author_name
+              FROM adaptation_snapshot s
+              JOIN source_books sb     ON sb.book_id  = s.book_id
+              JOIN film_adaptations fa ON fa.movie_id = s.movie_id
+              JOIN adaptation_links l  ON l.link_id   = s.link_id
+              LEFT JOIN film_adaptations best_fa ON best_fa.movie_id = (
+                  SELECT fa2.movie_id
+                    FROM film_adaptations fa2
+                   WHERE LOWER(fa2.title) = LOWER(s.book_title)
+                      OR LOWER(fa2.title) = LOWER(s.film_title)
+                   ORDER BY COALESCE(fa2.tmdb_vote_count, 0) DESC
+                   LIMIT 1
+              )
+             ORDER BY COALESCE(best_fa.tmdb_vote_count, fa.tmdb_vote_count, 0) DESC,
+                      l.match_confidence DESC,
+                      COALESCE(sb.ratings_count, 0) DESC,
+                      COALESCE(sb.first_publish_year, 9999) ASC
+            """;
+
+        List<WebCaseDto> out = new ArrayList<>();
+        Set<String> seenSlugs = new HashSet<>();
+
+        try (Connection conn = dbConfig.openAutoCommitConnection();
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+            while (rs.next()) {
+                String rawBookTitle = rs.getString("book_title");
+                String slug = rawBookTitle.toLowerCase()
+                        .replaceAll("[^a-z0-9]+", "-")
+                        .replaceAll("(^-|-$)", "")
+                        .replaceFirst("^the-wonderful-", "the-");
+
+                // Keep only the single best canonical adaptation per book title
+                if (!seenSlugs.add(slug)) {
+                    continue;
+                }
+
+                // Extract all available metadata from stored OpenLibrary & TMDB JSON payloads
+                String coverUrl = null;
+                String posterUrl = null;
+                String director = null;
+                Double jsonOlRating = null;
+                Integer jsonOlVotes = null;
+                Integer jsonPages = null;
+                Double jsonTmdbRating = null;
+                Integer jsonTmdbVotes = null;
+
+                try {
+                    String olJson = rs.getString("ol_payload");
+                    if (olJson != null && mapper != null) {
+                        var ol = mapper.readTree(olJson);
+                        if (ol.hasNonNull("cover_i")) {
+                            coverUrl = "https://covers.openlibrary.org/b/id/" + ol.get("cover_i").asText() + "-L.jpg";
+                        } else if (ol.hasNonNull("coverId")) {
+                            coverUrl = "https://covers.openlibrary.org/b/id/" + ol.get("coverId").asText() + "-L.jpg";
+                        } else if (ol.hasNonNull("cover_id")) {
+                            coverUrl = "https://covers.openlibrary.org/b/id/" + ol.get("cover_id").asText() + "-L.jpg";
+                        } else if (ol.hasNonNull("isbn13")) {
+                            coverUrl = "https://covers.openlibrary.org/b/isbn/" + ol.get("isbn13").asText() + "-L.jpg?default=false";
+                        }
+                        if (ol.hasNonNull("ratings_average")) jsonOlRating = ol.get("ratings_average").asDouble();
+                        else if (ol.hasNonNull("ratingsAverage")) jsonOlRating = ol.get("ratingsAverage").asDouble();
+                        if (ol.hasNonNull("ratings_count")) jsonOlVotes = ol.get("ratings_count").asInt();
+                        else if (ol.hasNonNull("ratingsCount")) jsonOlVotes = ol.get("ratingsCount").asInt();
+                        if (ol.hasNonNull("number_of_pages_median")) jsonPages = ol.get("number_of_pages_median").asInt();
+                        else if (ol.hasNonNull("pageCountMedian")) jsonPages = ol.get("pageCountMedian").asInt();
+                    }
+                } catch (Exception ignored) {}
+
+                String isbn13 = rs.getString("isbn_13");
+                if (coverUrl == null && isbn13 != null && !isbn13.isBlank()) {
+                    coverUrl = "https://covers.openlibrary.org/b/isbn/" + isbn13.trim() + "-L.jpg?default=false";
+                }
+
+                try {
+                    String tmdbJson = rs.getString("tmdb_payload");
+                    if (tmdbJson != null && mapper != null) {
+                        var tm = mapper.readTree(tmdbJson);
+                        String pPath = null;
+                        if (tm.hasNonNull("poster_path")) pPath = tm.get("poster_path").asText();
+                        else if (tm.hasNonNull("posterPath")) pPath = tm.get("posterPath").asText();
+                        if (pPath != null && !pPath.isBlank() && !"null".equalsIgnoreCase(pPath)) {
+                            posterUrl = pPath.startsWith("http")
+                                    ? pPath
+                                    : "https://image.tmdb.org/t/p/w500" + (pPath.startsWith("/") ? pPath : "/" + pPath);
+                        }
+                        if (tm.hasNonNull("director")) {
+                            director = tm.get("director").asText();
+                        } else if (tm.hasNonNull("crewNames") && tm.get("crewNames").isArray() && !tm.get("crewNames").isEmpty()) {
+                            director = tm.get("crewNames").get(0).asText();
+                        } else if (tm.hasNonNull("credits") && tm.get("credits").hasNonNull("crew")) {
+                            for (var c : tm.get("credits").get("crew")) {
+                                if ("Director".equalsIgnoreCase(c.path("job").asText())) {
+                                    director = c.path("name").asText();
+                                    break;
+                                }
+                            }
+                        }
+                        if (tm.hasNonNull("vote_average")) jsonTmdbRating = tm.get("vote_average").asDouble();
+                        else if (tm.hasNonNull("voteAverage")) jsonTmdbRating = tm.get("voteAverage").asDouble();
+                        if (tm.hasNonNull("vote_count")) jsonTmdbVotes = tm.get("vote_count").asInt();
+                        else if (tm.hasNonNull("voteCount")) jsonTmdbVotes = tm.get("voteCount").asInt();
+                    }
+                } catch (Exception ignored) {}
+
+                if (coverUrl == null && posterUrl != null) {
+                    coverUrl = posterUrl;
+                }
+
+                // Compute Book Percentile Rank (from snapshot, or DB column, or JSON payload)
+                BigDecimal snapBookRank = rs.getBigDecimal("book_rank");
+                double bRank;
+                if (snapBookRank != null) {
+                    bRank = snapBookRank.doubleValue();
+                } else {
+                    BigDecimal dbOlRating = rs.getBigDecimal("ol_rating");
+                    double olRating = dbOlRating != null
+                            ? dbOlRating.doubleValue()
+                            : (jsonOlRating != null && jsonOlRating > 0 ? jsonOlRating : 4.08);
+                    int olVotes = rs.getInt("ol_votes");
+                    if (rs.wasNull() && jsonOlVotes != null) olVotes = jsonOlVotes;
+                    double shrunkBook = ((double) (olVotes + 15) / (olVotes + 65.0)) * olRating + (50.0 / (olVotes + 65.0)) * 3.92;
+                    bRank = Math.max(0.12, Math.min(0.98, (shrunkBook - 3.10) / (4.55 - 3.10)));
+                }
+
+                // Compute Film Percentile Rank (from snapshot, or DB column, or JSON payload)
+                BigDecimal snapFilmRank = rs.getBigDecimal("film_rank");
+                double fRank;
+                if (snapFilmRank != null) {
+                    fRank = snapFilmRank.doubleValue();
+                } else {
+                    BigDecimal dbTmdbRating = rs.getBigDecimal("tmdb_rating");
+                    double tmdbRating = dbTmdbRating != null
+                            ? dbTmdbRating.doubleValue()
+                            : (jsonTmdbRating != null && jsonTmdbRating > 0 ? jsonTmdbRating : 7.0);
+                    int tmdbVotes = rs.getInt("tmdb_vote_count");
+                    if (rs.wasNull() && jsonTmdbVotes != null) tmdbVotes = jsonTmdbVotes;
+                    double shrunkFilm = ((double) (tmdbVotes + 50) / (tmdbVotes + 300.0)) * tmdbRating + (250.0 / (tmdbVotes + 300.0)) * 6.60;
+                    fRank = Math.max(0.10, Math.min(0.98, (shrunkFilm - 5.00) / (8.65 - 5.00)));
+                }
+
+                int divPts = (int) Math.round((bRank - fRank) * 100.0);
+                String category;
+                if (divPts > 2) category = "BOOK_OUTRANKS_FILM";
+                else if (divPts < -2) category = "FILM_OUTRANKS_BOOK";
+                else category = "ALIGNED";
+
+                int earliestYear = rs.getInt("earliest_book_year");
+                int firstPubYear = rs.getInt("first_publish_year");
+                int filmYear = rs.getInt("film_year");
+                int bookYear = earliestYear > 0 ? earliestYear : (firstPubYear > 0 ? firstPubYear : filmYear);
+                if (bookYear > filmYear) bookYear = filmYear;
+                int delayYears = Math.max(0, filmYear - bookYear);
+
+                int pages = rs.getInt("page_count_median");
+                Integer pagesObj = !rs.wasNull() && pages > 0 ? pages : jsonPages;
+                int runtime = rs.getInt("runtime_minutes");
+                Integer runtimeObj = !rs.wasNull() && runtime > 0 ? runtime : null;
+
+                BigDecimal ppm = rs.getBigDecimal("pages_per_minute");
+                Double ppmVal = ppm != null
+                        ? ppm.doubleValue()
+                        : (pagesObj != null && runtimeObj != null && runtimeObj > 0
+                        ? Math.round((pagesObj * 100.0) / runtimeObj) / 100.0 : null);
+
+                BigDecimal mult = rs.getBigDecimal("gross_multiple");
+                Double multVal = mult != null ? mult.doubleValue() : null;
+                if (multVal == null) {
+                    long rev = rs.getLong("revenue_usd");
+                    long bud = rs.getLong("budget_usd");
+                    if (rev > 0 && bud > 0) {
+                        multVal = Math.round(((double) rev / bud) * 100.0) / 100.0;
+                    }
+                }
+
+                long gAdj = rs.getLong("gross_adj_usd");
+                Long gAdjObj = rs.wasNull() ? null : gAdj;
+
+                String filmTitle = rs.getString("film_title");
+                String authorName = rs.getString("author_name");
+
+                out.add(new WebCaseDto(
+                        rs.getLong("link_id"),
+                        slug,
+                        rawBookTitle,
+                        filmTitle,
+                        authorName != null && !authorName.isBlank() ? authorName : "Original Author",
+                        director != null && !director.isBlank() ? director : "Theatrical Release",
+                        bookYear,
+                        filmYear,
+                        bRank,
+                        fRank,
+                        divPts,
+                        category,
+                        delayYears,
+                        pagesObj,
+                        runtimeObj,
+                        ppmVal,
+                        multVal,
+                        gAdjObj,
+                        rs.getString("book_reliability") != null ? rs.getString("book_reliability") : "OK",
+                        rs.getBigDecimal("match_confidence") != null ? rs.getBigDecimal("match_confidence").doubleValue() : 0.92,
+                        "REVIEW".equalsIgnoreCase(rs.getString("link_status")),
+                        coverUrl,
+                        posterUrl
+                ));
+            }
+        }
+        out.sort((a, b) -> Integer.compare(Math.abs(b.divergence()), Math.abs(a.divergence())));
+        return out;
     }
 }

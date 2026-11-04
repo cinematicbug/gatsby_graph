@@ -17,8 +17,12 @@ public final class DatabaseConfig implements AutoCloseable {
         hc.setUsername(appConfig.dbUser());
         hc.setPassword(appConfig.dbPassword());
         hc.setMaximumPoolSize(10);
-        hc.setMinimumIdle(2);
-        hc.setConnectionTimeout(10_000);
+        hc.setMinimumIdle(0);
+
+        // Fast 1.5s timeout + do not fail-fast on startup if MySQL is offline
+        hc.setConnectionTimeout(1_500);
+        hc.setInitializationFailTimeout(-1);
+
         // Section 7.3: Writer connections use READ COMMITTED to reduce gap locking
         hc.setTransactionIsolation("TRANSACTION_READ_COMMITTED");
         hc.addDataSourceProperty("cachePrepStmts", "true");
@@ -28,11 +32,15 @@ public final class DatabaseConfig implements AutoCloseable {
         this.dataSource = new HikariDataSource(hc);
 
         if (runMigrations) {
-            Flyway.configure()
-                    .dataSource(this.dataSource)
-                    .locations("classpath:db/migration")
-                    .load()
-                    .migrate();
+            try {
+                Flyway.configure()
+                        .dataSource(this.dataSource)
+                        .locations("classpath:db/migration")
+                        .load()
+                        .migrate();
+            } catch (Exception e) {
+                System.err.println("Warning: MySQL offline or unreachable; skipping Flyway migrations (" + e.getMessage() + ")");
+            }
         }
     }
 

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>The method — Gatsby Graph</title>
+    <meta name="description" content="How a book and its film are ranked, and how the gap between them is measured.">
+    <meta name="color-scheme" content="dark">
+    <script>
+        document.documentElement.classList.add('js');
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() { document.body.classList.add('is-ready'); }, 50);
+        });
+    </script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230B0A0E'/%3E%3Cpath d='M9 23V9l14 14V9' stroke='%23F4F1EA' stroke-width='2.2' fill='none'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1&family=Inter+Tight:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="wrap">
+    <header class="masthead">
+        <a class="wordmark" href="/"><i aria-hidden="true"></i>Gatsby Graph</a>
+        <nav class="nav" aria-label="Primary">
+            <a href="/cases">Case files</a>
+            <a href="/rankings">Rankings</a>
+            <a href="/method" aria-current="page">Method</a>
+        </nav>
+    </header>
+
+    <main id="main">
+        <div class="pagehead">
+            <h1>The method</h1>
+            <p class="lede">Two ratings are meaningless side by side. Put each one in its own league first, and the comparison becomes honest.</p>
+        </div>
+
+        <div class="blocks">
+            <div class="block">
+                <div class="block__k"><span>01</span>The two ranks</div>
+                <div class="block__v">
+                    <p>Every book is ranked against books, and every film against films. A film in the 91st percentile is rated above 91% of films; a book in the 88th is above 88% of books.</p>
+                    <p>Ranks are shrunk toward their baseline mean to keep small sample sizes from shouting, so a title with forty votes cannot outrank one with forty thousand.</p>
+                </div>
+            </div>
+
+            <div class="block">
+                <div class="block__k"><span>02</span>The gap</div>
+                <div class="block__v">
+                    <p>Subtract the film's percentile from the book's. A positive number means the book sits higher in its own medium; a negative number means the film does. Two points either way is a <b>dead heat</b>.</p>
+                    <div class="axis" style="--gap:var(--accent)" aria-hidden="true">
+                        <span class="axis__line"></span>
+                        <span class="axis__gap" style="left:74%;width:13%"></span>
+                        <span class="axis__dot axis__dot--book" style="left:74%"></span>
+                        <span class="axis__dot axis__dot--film" style="left:87%"></span>
+                        <span class="axis__scale"><span>0</span><span>50</span><span>100th percentile</span></span>
+                    </div>
+                    <p class="note" style="margin-top:24px">A book in the 74th and a film in the 87th: the film ranks 13 points higher. The scale is percentile, not a star rating — the dots move within their own leagues.</p>
+                </div>
+            </div>
+
+            <div class="block">
+                <div class="block__k"><span>03</span>The other numbers</div>
+                <div class="block__v">
+                    <p><b>Page to screen</b> is the wait between publication and release, in years. <b>Pages per film minute</b> is the compression: how much prose each minute of film has to carry. <b>Box office multiple</b> is gross divided by production budget, inflation-adjusted.</p>
+                    <p>None of these decide the verdict. They explain it.</p>
+                </div>
+            </div>
+
+            <div class="block">
+                <div class="block__k"><span>04</span>What this is not</div>
+                <div class="block__v">
+                    <p>It is not a review, and it is not a claim that one version is better art. It compares two crowds: the people who rate books, and the people who rate films. Where those crowds disagree, the gap is real even when the argument is not.</p>
+                    <p>Books flagged <b>low reliability</b> are shown, but marked, because a thin sample can still rise.</p>
+                </div>
+            </div>
+
+            <div class="block">
+                <div class="block__k"><span>05</span>The match</div>
+                <div class="block__v">
+                    <p>Each book is linked to a film by title, author, year and runtime evidence. Every link carries a confidence score; anything below the threshold is held for review rather than published. A case like Dune 1965 to Dune 2021 sits at 98%.</p>
+                </div>
+            </div>
+        </div>
+
+        <p class="note" style="padding-block:32px 0">
+            Sources: OpenLibrary for books, TMDB for films. Percentiles and divergence are recomputed on each snapshot.
+        </p>
+    </main>
+
+    <footer class="foot">
+        <div class="foot__row">
+            <p><span class="foot__brand">Gatsby Graph</span> — a book-to-screen arbitrage index.</p>
+            <p>Data: <a href="https://openlibrary.org" rel="noopener">OpenLibrary</a> · <a href="https://www.themoviedb.org" rel="noopener">TMDB</a></p>
+        </div>
+    </footer>
+</div>
+
+<script src="/data.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

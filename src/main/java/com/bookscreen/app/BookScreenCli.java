@@ -113,6 +113,12 @@ public final class BookScreenCli {
                                 r.insufficientReason() != null ? r.insufficientReason() : r.bookReliability());
                     }
                 }
+
+                case "serve" -> {
+                    int port = args.length >= 2 ? Integer.parseInt(args[1]) : 8080;
+                    java.nio.file.Path webDir = java.nio.file.Paths.get("web").toAbsolutePath();
+                    new WebServer(port, webDir, analyticsDao, orchestrator, snapshotDao, gateway.mapper()).start();
+                }
                 default -> printUsage();
             }
         }

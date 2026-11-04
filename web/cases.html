@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Case files — Gatsby Graph</title>
+    <meta name="description" content="Every book we've scored against its film adaptation, ordered by how far apart the two versions sit.">
+    <meta name="color-scheme" content="dark">
+    <script>
+        document.documentElement.classList.add('js');
+        window.addEventListener('DOMContentLoaded', function() {
+            setTimeout(function() { document.body.classList.add('is-ready'); }, 50);
+        });
+    </script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230B0A0E'/%3E%3Cpath d='M9 23V9l14 14V9' stroke='%23F4F1EA' stroke-width='2.2' fill='none'/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT,WONK@0,9..144,300..700,0..100,0..1;1,9..144,300..700,0..100,0..1&family=Inter+Tight:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="wrap">
+    <header class="masthead">
+        <a class="wordmark" href="/"><i aria-hidden="true"></i>Gatsby Graph</a>
+        <nav class="nav" aria-label="Primary">
+            <a href="/cases" aria-current="page">Case files</a>
+            <a href="/rankings">Rankings</a>
+            <a href="/method">Method</a>
+        </nav>
+    </header>
+
+    <main id="main">
+        <div class="pagehead">
+            <h1>The case files</h1>
+            <p class="lede">Every book we have scored against its adaptation, ordered by how far apart the two versions sit.</p>
+        </div>
+
+        <div class="toolbar">
+            <div class="search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+                    <circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5" stroke-linecap="round"/>
+                </svg>
+                <input id="filter" type="search" placeholder="Filter or search any title…" aria-label="Filter cases by title" autocomplete="off">
+            </div>
+            <div class="chips" role="group" aria-label="Filter by verdict">
+                <button class="chip" data-cat="ALL" aria-pressed="true">All</button>
+                <button class="chip" data-cat="BOOK_OUTRANKS_FILM" aria-pressed="false">Book ahead</button>
+                <button class="chip" data-cat="FILM_OUTRANKS_BOOK" aria-pressed="false">Film ahead</button>
+                <button class="chip" data-cat="ALIGNED" aria-pressed="false">Dead heat</button>
+            </div>
+        </div>
+
+        <div style="padding-block:16px">
+            <span class="note" id="case-count">Loading cases…</span>
+        </div>
+
+        <ul class="rows" id="case-list" aria-label="Case files"></ul>
+        <p class="empty" id="case-empty" hidden>No case matches that.</p>
+        <noscript><p class="empty">The index is rendered from the case data. Enable JavaScript to browse it.</p></noscript>
+    </main>
+
+    <footer class="foot">
+        <div class="foot__row">
+            <p><span class="foot__brand">Gatsby Graph</span> — a book-to-screen arbitrage index.</p>
+            <p>Covers: <a href="https://openlibrary.org" rel="noopener">OpenLibrary</a> · Ratings: <a href="https://www.themoviedb.org" rel="noopener">TMDB</a></p>
+        </div>
+    </footer>
+</div>
+
+<script src="/data.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
