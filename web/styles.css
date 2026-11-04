@@ -500,3 +500,6 @@ html.js .reveal.in{opacity:1;transform:none}
     .reveal{opacity:1;transform:none}
     .obj{transform:none}
 }
+/* Prevent flash of hardcoded Dune template on /case */
+body:has(.casehero):not(.case-loaded) main { opacity: 0; }
+body:has(.casehero).case-loaded main { opacity: 1; transition: opacity 0.15s ease; }

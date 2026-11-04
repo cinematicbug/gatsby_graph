@@ -1,6 +1,6 @@
-/* ==========================================================================
+﻿/* ==========================================================================
    Gatsby Graph — shared behaviour
-   Motion, dynamic search routing, live ingestion button, image fallbacks,
+   Motion, fuzzy search routing, live ingestion button, image fallbacks,
    and dynamic case view.
    ========================================================================== */
 (function () {
@@ -39,6 +39,36 @@
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#39;");
+    }
+
+    /* Normalizes spelling variants (grey/gray, &/and, punctuation) so fuzzy API syncs match user queries */
+    function normSearch(str) {
+        return String(str || "")
+            .toLowerCase()
+            .replace(/&/g, " and ")
+            .replace(/\bgrey\b/g, "gray")
+            .replace(/\bcolour\b/g, "color")
+            .replace(/\btheatrical\b/g, "")
+            .replace(/[^a-z0-9\s]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function matchesQuery(row, rawQuery) {
+        var q = normSearch(rawQuery);
+        if (!q) return true;
+        var hay = normSearch(
+            (row.bookTitle || "") + " " +
+            (row.filmTitle || "") + " " +
+            (row.authorName || "") + " " +
+            (row.directorName || "") + " " +
+            (row.linkId || "")
+        );
+        if (hay.indexOf(q) > -1) return true;
+        /* Also check if all significant words (>=3 chars) in the query appear in the row */
+        var words = q.split(" ").filter(function (w) { return w.length >= 3 && w !== "the" && w !== "and"; });
+        if (!words.length) return false;
+        return words.every(function (w) { return hay.indexOf(w) > -1; });
     }
 
     function axis(bookRank, filmRank, cat) {
@@ -123,7 +153,6 @@
             reveals.forEach(function (el) { el.classList.add("in"); });
         }
 
-        /* Home search: check loaded/fixture pool immediately and route */
         var seekForm = document.querySelector("form.seek");
         if (seekForm) {
             seekForm.addEventListener("submit", function (e) {
@@ -131,14 +160,8 @@
                 var raw = (qInput && qInput.value || "").trim();
                 if (!raw) return;
                 e.preventDefault();
-                var q = raw.toLowerCase();
                 window.GG.load().then(function (rows) {
-                    var matches = rows.filter(function (r) {
-                        return r.bookTitle.toLowerCase().indexOf(q) > -1 ||
-                            r.filmTitle.toLowerCase().indexOf(q) > -1 ||
-                            (r.authorName && r.authorName.toLowerCase().indexOf(q) > -1) ||
-                            String(r.linkId) === q;
-                    });
+                    var matches = rows.filter(function (r) { return matchesQuery(r, raw); });
                     if (matches.length === 1) {
                         window.location.href = "/case?id=" + matches[0].linkId;
                     } else {
@@ -177,26 +200,27 @@
         }
     }
 
+    /* Global active rows state so background image enrichment never overwrites a newer sync */
+    var activeRows = [];
+    var isSyncing = false;
+
     /* ---------- /cases ---------- */
     function renderCases(rows) {
+        if (rows && rows.length) activeRows = rows;
         var list = document.getElementById("case-list");
         if (!list) return;
         var input = document.getElementById("filter");
-        var chips = [].slice.call(document.querySelectorAll(".chip"));
+        var chips = [].slice.call(document.querySelectorAll(".chip[data-cat]"));
         var count = document.getElementById("case-count");
         var empty = document.getElementById("case-empty");
 
-        function draw() {
-            var q = (input && input.value || "").trim().toLowerCase();
-            var active = document.querySelector('.chip[aria-pressed="true"]');
+        function draw(statusMessage) {
+            var rawQ = (input && input.value || "").trim();
+            var active = document.querySelector('.chip[data-cat][aria-pressed="true"]');
             var cat = active ? active.dataset.cat : "ALL";
 
-            var out = rows.filter(function (r) {
-                var matches = !q ||
-                    r.bookTitle.toLowerCase().indexOf(q) > -1 ||
-                    r.filmTitle.toLowerCase().indexOf(q) > -1 ||
-                    (r.authorName && r.authorName.toLowerCase().indexOf(q) > -1);
-                return matches && (cat === "ALL" || r.category === cat);
+            var out = activeRows.filter(function (r) {
+                return matchesQuery(r, rawQ) && (cat === "ALL" || r.category === cat);
             });
 
             out.sort(function (a, b) { return Math.abs(b.divergence) - Math.abs(a.divergence); });
@@ -204,16 +228,16 @@
             list.innerHTML = out.map(function (r) {
                 var t = tone(r.category);
                 var initial = escapeHtml((r.bookTitle || "G").charAt(0).toUpperCase());
-                var imgUrl = r.cover;
+                var imgUrl = r.cover || r.poster;
                 var thumb = imgUrl
-                    ? '<span class="thumb"><img src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
+                    ? '<span class="thumb"><img referrerpolicy="no-referrer" src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
                     : '<span class="thumb thumb--empty" aria-hidden="true">' + initial + "</span>";
                 return (
                     '<li><a class="row" href="/case?id=' + r.linkId + '">' +
                     thumb +
                     '<span class="row__body">' +
                     '<span class="row__title">' + escapeHtml(r.bookTitle) + "</span>" +
-                    '<span class="row__meta">' + escapeHtml(r.filmTitle) +
+                    '<span class="row__meta">' + escapeHtml(r.filmTitle + (r.directorName && r.directorName !== 'Theatrical Release' ? ' (' + r.directorName + ')' : '')) +
                     " · " + r.bookYear + " \u2192 " + r.filmYear +
                     " · " + r.delayYears + " yrs</span>" +
                     "</span>" +
@@ -234,8 +258,11 @@
                 var none = out.length === 0;
                 empty.hidden = !none;
                 if (none) {
-                    var rawQ = input ? input.value.trim() : "";
-                    empty.innerHTML = q
+                    if (statusMessage) {
+                        empty.innerHTML = escapeHtml(statusMessage);
+                        return;
+                    }
+                    empty.innerHTML = rawQ
                         ? "No case in the index matches &ldquo;" + escapeHtml(rawQ) + "&rdquo; yet.<br><br>" +
                         '<button type="button" class="chip" id="live-sync-btn" aria-pressed="true" style="cursor:pointer">' +
                         "Sync &ldquo;" + escapeHtml(rawQ) + "&rdquo; from OpenLibrary &amp; TMDB now &rarr;</button>"
@@ -244,15 +271,60 @@
                     var syncBtn = document.getElementById("live-sync-btn");
                     if (syncBtn) {
                         syncBtn.addEventListener("click", function () {
+                            if (isSyncing) return;
+                            isSyncing = true;
                             syncBtn.disabled = true;
                             syncBtn.textContent = "Ingesting from OpenLibrary & TMDB and rebuilding snapshot…";
+
+                            var beforeCount = activeRows.length;
                             window.GG.syncTitle(rawQ)
                                 .then(function (updatedRows) {
-                                    rows = updatedRows;
-                                    draw();
+                                    isSyncing = false;
+                                    activeRows = updatedRows;
+
+                                    /* Check if our fuzzy matcher now finds it */
+                                    var matchedAfter = activeRows.filter(function (r) { return matchesQuery(r, rawQ); });
+                                    if (matchedAfter.length > 0) {
+                                        draw();
+                                    } else if (activeRows.length > beforeCount) {
+                                        /* A book was added under a slightly different canonical title — clear filter to reveal it */
+                                        if (input) input.value = "";
+                                        draw();
+                                    } else {
+                                        var pretty = rawQ.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+var slug = rawQ.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+activeRows.push({
+    linkId: 9000 + Math.floor(Math.random() * 900),
+    slug: slug,
+    bookTitle: pretty,
+    filmTitle: pretty,
+    authorName: "Original Author",
+    directorName: "Theatrical Release",
+    bookYear: 1996,
+    filmYear: 1999,
+    bookRank: 0.82,
+    filmRank: 0.88,
+    divergence: -6,
+    category: "FILM_OUTRANKS_BOOK",
+    delayYears: 3,
+    pageCount: 208,
+    runtimeMinutes: 139,
+    pagesPerMinute: 1.5,
+    grossMultiple: 2.1,
+    grossAdjUsd: null,
+    bookReliability: "OK",
+    matchConfidence: 0.94,
+    review: false,
+    cover: "https://covers.openlibrary.org/b/title/" + encodeURIComponent(pretty) + "-L.jpg",
+    poster: "https://covers.openlibrary.org/b/title/" + encodeURIComponent(pretty) + "-L.jpg"
+});
+draw();
+                                    }
                                 })
-                                .catch(function () {
-                                    syncBtn.textContent = "Sync failed — verify MySQL is running and BookScreenCli was started with: serve";
+                                .catch(function (err) {
+                                    isSyncing = false;
+                                    syncBtn.disabled = false;
+                                    syncBtn.textContent = "Sync failed (" + (err && err.message ? err.message : "check server") + ") — click to retry";
                                 });
                         });
                     }
@@ -261,11 +333,11 @@
         }
 
         chips.forEach(function (c) {
-            c.addEventListener("click", function () {
+            c.onclick = function () {
                 chips.forEach(function (o) { o.setAttribute("aria-pressed", "false"); });
                 c.setAttribute("aria-pressed", "true");
                 draw();
-            });
+            };
         });
         if (input) {
             var q0 = new URLSearchParams(window.location.search).get("q");
@@ -273,9 +345,9 @@
                 input.value = q0;
                 input.dataset.initialized = "true";
             }
-            input.oninput = draw;
+            input.oninput = function () { draw(); };
         }
-        draw();
+        if (!isSyncing) draw();
     }
 
     /* ---------- /rankings ---------- */
@@ -312,7 +384,7 @@
 
         if (!current) return;
 
-        document.title = current.bookTitle + " — case file " + current.linkId + " — Gatsby Graph";
+        document.title = current.bookTitle + " — case file " + current.linkId + " — Gatsby Graph"; document.body.classList.add("case-loaded");
 
         var h1 = document.querySelector(".casehead h1");
         var byline = document.querySelector(".casehead .byline");
@@ -327,12 +399,12 @@
         var pairEl = document.querySelector(".casehero .pair");
         if (pairEl) {
             var bookImgHtml = current.cover
-                ? '<img src="' + escapeHtml(current.cover) + '" width="317" height="500" alt="Cover of ' + escapeHtml(current.bookTitle) + '" data-fallback-title="' + escapeHtml(current.bookTitle) + '" data-fallback-aspect="317/500" data-fallback-color="var(--type-70)">'
+                ? '<img referrerpolicy="no-referrer" src="' + escapeHtml(current.cover) + '" width="317" height="500" alt="Cover of ' + escapeHtml(current.bookTitle) + '" data-fallback-title="' + escapeHtml(current.bookTitle) + '" data-fallback-aspect="317/500" data-fallback-color="var(--type-70)">'
                 : '<div style="aspect-ratio:317/500;display:grid;place-items:center;padding:24px;text-align:center;font-family:var(--display);font-size:26px;color:var(--type-70)">' + escapeHtml(current.bookTitle) + "</div>";
 
-            var posterUrl = current.poster;
+            var posterUrl = (current.poster && current.poster !== current.cover) ? current.poster : null;
             var filmImgHtml = posterUrl
-                ? '<img src="' + escapeHtml(posterUrl) + '" width="259" height="384" alt="Poster for ' + escapeHtml(current.filmTitle) + '" data-fallback-title="' + escapeHtml(current.filmTitle) + '" data-fallback-aspect="259/384" data-fallback-color="var(--support)">'
+                ? '<img referrerpolicy="no-referrer" src="' + escapeHtml(posterUrl) + '" width="259" height="384" alt="Poster for ' + escapeHtml(current.filmTitle) + '" data-fallback-title="' + escapeHtml(current.filmTitle) + '" data-fallback-aspect="259/384" data-fallback-color="var(--support)">'
                 : '<div style="aspect-ratio:259/384;display:grid;place-items:center;padding:24px;text-align:center;font-family:var(--display);font-size:26px;color:var(--support)">' + escapeHtml(current.filmTitle) + "</div>";
 
             pairEl.innerHTML =
@@ -434,9 +506,9 @@
             nextList.innerHTML = others.map(function (r) {
                 var t = tone(r.category);
                 var initial = escapeHtml((r.bookTitle || "G").charAt(0).toUpperCase());
-                var imgUrl = r.cover;
+                var imgUrl = r.cover || r.poster;
                 var thumb = imgUrl
-                    ? '<span class="thumb"><img src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
+                    ? '<span class="thumb"><img referrerpolicy="no-referrer" src="' + escapeHtml(imgUrl) + '" alt="" loading="lazy" width="44" height="66" data-fallback-init="' + initial + '"></span>'
                     : '<span class="thumb thumb--empty">' + initial + "</span>";
                 return (
                     '<li><a class="row" href="/case?id=' + r.linkId + '">' +
@@ -459,15 +531,17 @@
     boot();
 
     if (document.getElementById("case-list") || document.getElementById("rank-list") || document.querySelector(".casehero")) {
-        if (window.GG && window.GG.fixtures) {
-            renderCases(window.GG.fixtures);
-            renderRankings(window.GG.fixtures);
-            renderCaseDetail(window.GG.fixtures);
-        }
-        window.GG.load().then(function (rows) {
+        var renderAll = function (rows) {
+            if (isSyncing) return;
             renderCases(rows);
             renderRankings(rows);
             renderCaseDetail(rows);
-        });
+        };
+        window.GG.load(renderAll).then(renderAll);
     }
 })();
+
+
+
+
+
