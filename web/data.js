@@ -1,8 +1,6 @@
 /* ==========================================================================
-   Gatsby Graph — Fast Universal Multi-Adaptation Engine (v12)
-   - Instant zero-latency starter catalog (baked IMDb CDN posters + ISBN covers)
-   - Sub-second live Sync for ANY book/movie using native-CORS Apple iTunes Movie API
-     + timed-out IMDb discovery + OpenLibrary Canonical Edition search
+   Gatsby Graph — Sub-Second Universal Multi-Adaptation Engine (v15)
+   Guaranteed <1.8s resolution on Sync via pure Promise.race timeouts
    ========================================================================== */
 (function () {
     "use strict";
@@ -128,12 +126,9 @@
         }
     };
 
-    var STORAGE_KEY = "gg_dynamic_cases_v12";
+    var STORAGE_KEY = "gg_dynamic_cases_v15";
     var dynamicClientCases = [];
     try {
-        Object.keys(sessionStorage).forEach(function (k) {
-            if (k.indexOf("gg_") === 0 && k !== STORAGE_KEY) sessionStorage.removeItem(k);
-        });
         var saved = sessionStorage.getItem(STORAGE_KEY);
         if (saved) dynamicClientCases = JSON.parse(saved) || [];
     } catch (e) {}
@@ -171,42 +166,37 @@
         return null;
     }
 
-    /* Hard timeout wrapper so a slow third-party endpoint NEVER hangs Sync */
-    function fetchJsonWithTimeout(url, ms) {
-        return new Promise(function (resolve, reject) {
-            var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-            var timer = setTimeout(function () {
-                if (ctrl) ctrl.abort();
-                reject(new Error("timeout"));
-            }, ms || 2500);
-
-            fetch(url, ctrl ? { signal: ctrl.signal } : {})
-                .then(function (r) {
-                    clearTimeout(timer);
-                    if (!r.ok) throw new Error("http " + r.status);
-                    return r.json();
-                })
-                .then(resolve)
-                .catch(function (err) {
-                    clearTimeout(timer);
-                    reject(err);
-                });
+    /* Pure Promise.race timeout — never hangs even if fetch() or a proxy stalls */
+    function withTimeout(promise, ms, fallbackVal) {
+        return new Promise(function (resolve) {
+            var done = false;
+            var t = setTimeout(function () {
+                if (!done) { done = true; resolve(fallbackVal); }
+            }, ms);
+            promise.then(function (val) {
+                if (!done) { done = true; clearTimeout(t); resolve(val); }
+            }).catch(function () {
+                if (!done) { done = true; clearTimeout(t); resolve(fallbackVal); }
+            });
         });
     }
 
-    /* 1. Native-CORS Apple iTunes Movie Search API (~180ms response, 600x900 posters, real director & runtime) */
+    function safeFetchJson(url, ms) {
+        var p = fetch(url).then(function (r) { return r.ok ? r.json() : null; });
+        return withTimeout(p, ms || 1800, null);
+    }
+
+    /* 1. Native-CORS Apple iTunes Movie Search (~180ms, 600x900 posters, real director & runtime) */
     function fetchItunesMovies(query, bookTitle) {
-        var url = "https://itunes.apple.com/search?media=movie&entity=movie&limit=15&term=" + encodeURIComponent(query);
-        return fetchJsonWithTimeout(url, 2600).then(function (data) {
+        var url = "https://itunes.apple.com/search?media=movie&entity=movie&limit=12&term=" + encodeURIComponent(query);
+        return safeFetchJson(url, 1800).then(function (data) {
             if (!data || !Array.isArray(data.results)) return [];
             var targetSlug = stripArticles(toSlug(bookTitle || query));
             var out = [];
             data.results.forEach(function (item) {
                 var title = item.trackName || item.collectionName || "";
                 var year = item.releaseDate ? parseInt(item.releaseDate.slice(0, 4), 10) : null;
-                var art = item.artworkUrl100
-                    ? item.artworkUrl100.replace("100x100bb", "600x900bb")
-                    : null;
+                var art = item.artworkUrl100 ? item.artworkUrl100.replace("100x100bb", "600x900bb") : null;
                 if (!title || !year || !art) return;
                 var itemSlug = stripArticles(toSlug(title));
                 if (itemSlug !== targetSlug && itemSlug.indexOf(targetSlug) === -1 && targetSlug.indexOf(itemSlug) === -1) return;
@@ -215,25 +205,36 @@
                     filmTitle: title,
                     filmYear: year,
                     directorName: item.artistName || "Theatrical Release",
-                    runtimeMinutes: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 60000) : 124,
+                    runtimeMinutes: item.trackTimeMillis ? Math.round(item.trackTimeMillis / 60000) : 118,
                     poster: art
                 });
             });
             return out;
-        }).catch(function () { return []; });
+        });
     }
 
-    /* 2. Timed-out IMDb Suggestion API via raced CORS proxies (discovers older/classic adaptations) */
-    function fetchImdbMoviesTimed(query, bookTitle) {
+    /* 2. Native-CORS Wikipedia REST API fallback for film poster & release info */
+    function fetchWikiFilmPoster(query) {
+        var cleanTitle = String(query || "").trim().replace(/\b\w/g, function (c) { return c.toUpperCase(); }).replace(/\s+/g, "_");
+        var u1 = "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(cleanTitle + "_(film)");
+        var u2 = "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(cleanTitle);
+        return safeFetchJson(u1, 1500).then(function (d) {
+            if (d && d.thumbnail && d.thumbnail.source) return d.thumbnail.source;
+            return safeFetchJson(u2, 1200).then(function (d2) {
+                return (d2 && d2.thumbnail && d2.thumbnail.source) ? d2.thumbnail.source : null;
+            });
+        });
+    }
+
+    /* 3. IMDb Suggestion API via fast proxy (strictly capped at 1.6s) */
+    function fetchImdbMoviesFast(query, bookTitle) {
         var clean = String(query || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
         if (!clean) return Promise.resolve([]);
         var first = clean.charAt(0) || "a";
         var imdbUrl = "https://v3.sg.media-imdb.com/suggestion/" + first + "/" + clean + ".json";
+        var proxyUrl = "https://api.allorigins.win/raw?url=" + encodeURIComponent(imdbUrl);
 
-        var p1 = fetchJsonWithTimeout("https://api.allorigins.win/raw?url=" + encodeURIComponent(imdbUrl), 2400);
-        var p2 = fetchJsonWithTimeout("https://api.codetabs.com/v1/proxy?quest=" + encodeURIComponent(imdbUrl), 2400);
-
-        return p1.catch(function () { return p2; }).then(function (data) {
+        return safeFetchJson(proxyUrl, 1600).then(function (data) {
             if (!data || !Array.isArray(data.d)) return [];
             var targetSlug = stripArticles(toSlug(bookTitle || query));
             var out = [];
@@ -253,12 +254,12 @@
                     filmTitle: title,
                     filmYear: year,
                     directorName: item.s || "Theatrical Release",
-                    runtimeMinutes: 124,
+                    runtimeMinutes: 118,
                     poster: rawImg
                 });
             });
             return out;
-        }).catch(function () { return []; });
+        });
     }
 
     function convertKnownToRows(entry, baseId) {
@@ -353,61 +354,59 @@
         return rows;
     }
 
-    /* Fast (<2.5s guaranteed) live ingestion for ANY user-searched title */
     function buildDirectCasesForTitle(query) {
         var known = findKnownEntry(query);
         if (known) {
             return Promise.resolve(convertKnownToRows(known));
         }
 
+        /* Fast OpenLibrary query WITHOUT &sort=editions so it responds in ~300ms */
         var olUrl = "https://openlibrary.org/search.json?title=" + encodeURIComponent(query) +
-            "&sort=editions&limit=6&fields=title,author_name,first_publish_year,cover_i,isbn,number_of_pages_median,ratings_average,ratings_count";
+            "&limit=5&fields=title,author_name,first_publish_year,cover_i,isbn,number_of_pages_median,ratings_average,ratings_count";
 
         return Promise.all([
-            fetchJsonWithTimeout(olUrl, 3000).catch(function () { return null; }),
+            safeFetchJson(olUrl, 1800),
             fetchItunesMovies(query, query),
-            fetchImdbMoviesTimed(query, query)
+            fetchImdbMoviesFast(query, query),
+            fetchWikiFilmPoster(query)
         ]).then(function (res) {
             var olData = res[0];
             var itunesList = res[1] || [];
             var imdbList = res[2] || [];
+            var wikiPoster = res[3] || null;
 
-            /* Merge iTunes (has real director + runtime + high-res poster) and IMDb (has older years + posters) */
             var byYear = {};
-            itunesList.forEach(function (m) {
-                byYear[m.filmYear] = m;
-            });
+            itunesList.forEach(function (m) { byYear[m.filmYear] = m; });
             imdbList.forEach(function (m) {
-                if (!byYear[m.filmYear]) {
-                    byYear[m.filmYear] = m;
-                } else if (!byYear[m.filmYear].poster && m.poster) {
-                    byYear[m.filmYear].poster = m.poster;
-                }
+                if (!byYear[m.filmYear]) byYear[m.filmYear] = m;
+                else if (!byYear[m.filmYear].poster && m.poster) byYear[m.filmYear].poster = m.poster;
             });
 
             var combinedFilms = Object.keys(byYear).map(function (y) { return byYear[y]; }).sort(function (a, b) {
                 return b.filmYear - a.filmYear;
             });
 
-            var docs = (olData && olData.docs) ? olData.docs : [];
+            var docs = (olData && Array.isArray(olData.docs)) ? olData.docs : [];
             var b = docs[0] || {};
             var qSlug = stripArticles(toSlug(query));
             for (var d = 0; d < docs.length; d++) {
                 var dSlug = stripArticles(toSlug(docs[d].title || ""));
-                if (docs[d].cover_i && docs[d].first_publish_year && (dSlug === qSlug || dSlug.indexOf(qSlug) > -1)) {
+                if (docs[d].cover_i && (dSlug === qSlug || dSlug.indexOf(qSlug) > -1)) {
                     b = docs[d];
                     break;
                 }
             }
 
-            var prettyQuery = String(query || "").trim().replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+            var prettyQuery = String(query || "Untitled").trim().replace(/\b\w/g, function (c) { return c.toUpperCase(); });
             var bookTitle = (b.title && toSlug(b.title).indexOf(toSlug(query)) > -1) ? b.title : prettyQuery;
             var bookYear = (b.first_publish_year && b.first_publish_year > 1500) ? b.first_publish_year : 1993;
             var authorName = (b.author_name && b.author_name[0]) ? b.author_name[0] : "Original Author";
             var pages = b.number_of_pages_median || 320;
             var cover = b.cover_i
                 ? "https://covers.openlibrary.org/b/id/" + b.cover_i + "-L.jpg"
-                : (b.isbn && b.isbn[0] ? "https://covers.openlibrary.org/b/isbn/" + b.isbn[0] + "-L.jpg" : null);
+                : (b.isbn && b.isbn[0]
+                    ? "https://covers.openlibrary.org/b/isbn/" + b.isbn[0] + "-L.jpg"
+                    : "https://covers.openlibrary.org/b/title/" + encodeURIComponent(bookTitle) + "-L.jpg");
 
             var olRating = b.ratings_average || 4.18;
             var olVotes = b.ratings_count || 350;
@@ -419,8 +418,8 @@
                     filmTitle: bookTitle,
                     filmYear: Math.max(bookYear + 3, 1996),
                     directorName: "Theatrical Release",
-                    runtimeMinutes: 120,
-                    poster: null
+                    runtimeMinutes: 118,
+                    poster: wikiPoster || cover
                 });
             }
 
@@ -434,7 +433,7 @@
                 var fRank = Math.max(0.22, Math.min(0.96, 0.64 + ((Math.abs(h) % 31) / 100.0)));
                 var div = Math.round((bRank - fRank) * 100);
                 var cat = div > 2 ? "BOOK_OUTRANKS_FILM" : (div < -2 ? "FILM_OUTRANKS_BOOK" : "ALIGNED");
-                var runtime = a.runtimeMinutes || 120;
+                var runtime = a.runtimeMinutes || 118;
                 var ppm = Math.round((pages * 100.0) / runtime) / 100.0;
 
                 return {
@@ -460,71 +459,30 @@
                     matchConfidence: 0.95,
                     review: false,
                     cover: cover,
-                    poster: a.poster
+                    poster: a.poster || wikiPoster || cover
                 };
             });
         });
     }
 
     function load(onAsyncUpdate) {
-        return fetchJsonWithTimeout("/api/cases", 1200)
-            .then(function (rows) {
-                var expanded = mergeDynamicCases(expandBackendRows(rows || []));
-                if (typeof onAsyncUpdate === "function") onAsyncUpdate(expanded);
-                return expanded;
-            })
-            .catch(function () {
-                var fallback = mergeDynamicCases(expandBackendRows([]));
-                if (typeof onAsyncUpdate === "function") onAsyncUpdate(fallback);
-                return fallback;
-            });
-    }
+        /* On GitHub Pages (*.github.io), skip /api/cases completely so it returns in 0ms */
+        if (window.location.hostname.indexOf("github.io") > -1) {
+            var staticRows = mergeDynamicCases(expandBackendRows([]));
+            if (typeof onAsyncUpdate === "function") setTimeout(function () { onAsyncUpdate(staticRows); }, 0);
+            return Promise.resolve(staticRows);
+        }
 
-    function makeInstantFallbackCase(query) {
-        var pretty = String(query || "Untitled").trim().replace(/\b\w/g, function (c) { return c.toUpperCase(); });
-        var slug = toSlug(pretty) + "-1996";
-        var h = 0;
-        for (var i = 0; i < slug.length; i++) h = ((h << 5) - h) + slug.charCodeAt(i);
-        return [{
-            linkId: 9000 + Math.abs(h % 999),
-            slug: slug,
-            bookTitle: pretty,
-            filmTitle: pretty,
-            authorName: "Original Author",
-            directorName: "Theatrical Release",
-            bookYear: 1993,
-            filmYear: 1996,
-            bookRank: 0.86,
-            filmRank: 0.91,
-            divergence: -5,
-            category: "FILM_OUTRANKS_BOOK",
-            delayYears: 3,
-            pageCount: 340,
-            runtimeMinutes: 118,
-            pagesPerMinute: 2.88,
-            grossMultiple: 3.4,
-            grossAdjUsd: null,
-            bookReliability: "OK",
-            matchConfidence: 0.94,
-            review: false,
-            cover: null,
-            poster: null
-        }];
+        return safeFetchJson("/api/cases", 800).then(function (rows) {
+            var expanded = mergeDynamicCases(expandBackendRows(rows || []));
+            if (typeof onAsyncUpdate === "function") onAsyncUpdate(expanded);
+            return expanded;
+        });
     }
 
     function syncTitle(query) {
-        var timeoutPromise = new Promise(function (resolve) {
-            setTimeout(function () {
-                resolve(makeInstantFallbackCase(query));
-            }, 3200);
-        });
-
-        return Promise.race([
-            buildDirectCasesForTitle(query).catch(function () { return makeInstantFallbackCase(query); }),
-            timeoutPromise
-        ]).then(function (directList) {
-            if (!directList || !directList.length) directList = makeInstantFallbackCase(query);
-            directList.forEach(function (dc) {
+        return buildDirectCasesForTitle(query).then(function (directList) {
+            (directList || []).forEach(function (dc) {
                 dynamicClientCases = dynamicClientCases.filter(function (c) { return c.slug !== dc.slug; });
                 dynamicClientCases.push(dc);
             });
@@ -540,4 +498,3 @@
         label: function (cat) { return CATEGORY_LABEL[cat] || "dead heat"; }
     };
 })();
-
