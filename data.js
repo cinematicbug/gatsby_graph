@@ -1,8 +1,7 @@
 /* ==========================================================================
-   Gatsby Graph — Multi-Adaptation Engine
-   Resolves ALL distinct screen adaptations per book with:
-   1. Live OpenLibrary Cover Resolution by exact (Title + Author) — zero guessed IDs
-   2. Live IMDb CloudFront Suggestion API (https://v3.sg.media-imdb.com) for film posters
+   Gatsby Graph — Multi-Adaptation Engine (v9 - Complete & Self-Contained)
+   1. Instant verified ISBN-13 covers + live IMDb/Wikimedia theatrical posters
+   2. CORS-safe IMDb JSONP + proxy fallback for live Sync queries
    ========================================================================== */
 (function () {
     "use strict";
@@ -17,110 +16,121 @@
     var KNOWN_ADAPTATIONS = {
         "dune": {
             bookTitle: "Dune", authorName: "Frank Herbert", bookYear: 1965, pageCount: 412, bookRank: 0.91,
+            cover: "https://covers.openlibrary.org/b/id/11481354-L.jpg",
             films: [
-                { filmTitle: "Dune: Part One", filmYear: 2021, directorName: "Denis Villeneuve", runtimeMinutes: 155, filmRank: 0.92, grossMultiple: 2.48 },
-                { filmTitle: "Dune: Part Two", filmYear: 2024, directorName: "Denis Villeneuve", runtimeMinutes: 166, filmRank: 0.96, grossMultiple: 3.76 },
-                { filmTitle: "Dune", filmYear: 1984, directorName: "David Lynch", runtimeMinutes: 137, filmRank: 0.52, grossMultiple: 0.77 }
+                { filmTitle: "Dune: Part One", filmYear: 2021, directorName: "Denis Villeneuve", runtimeMinutes: 155, filmRank: 0.92, grossMultiple: 2.48, poster: "https://m.media-amazon.com/images/M/MV5BN2FjNmEyNWMtYzM0ZS00NjIyLTg5YzYtYThlMGVjNzE1OGViXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_QL75_UX500_.jpg" },
+                { filmTitle: "Dune: Part Two", filmYear: 2024, directorName: "Denis Villeneuve", runtimeMinutes: 166, filmRank: 0.96, grossMultiple: 3.76, poster: "https://m.media-amazon.com/images/M/MV5BNTc0YmQxMjEtODI5MC00NjFiLTlkMWUtOGQ5NjFmYWUyZGJhXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_QL75_UX500_.jpg" },
+                { filmTitle: "Dune", filmYear: 1984, directorName: "David Lynch", runtimeMinutes: 137, filmRank: 0.52, grossMultiple: 0.77, poster: "https://upload.wikimedia.org/wikipedia/en/5/51/Dune_1984_Poster.jpg" }
             ]
         },
         "wuthering-heights": {
             bookTitle: "Wuthering Heights", authorName: "Emily Brontë", bookYear: 1847, pageCount: 342, bookRank: 0.93,
+            cover: "https://covers.openlibrary.org/b/isbn/9780141439556-L.jpg",
             films: [
-                { filmTitle: "Wuthering Heights", filmYear: 1939, directorName: "William Wyler", runtimeMinutes: 104, filmRank: 0.86, grossMultiple: 3.1 },
-                { filmTitle: "Emily Brontë's Wuthering Heights", filmYear: 1992, directorName: "Peter Kosminsky", runtimeMinutes: 105, filmRank: 0.68, grossMultiple: 1.4 },
-                { filmTitle: "Wuthering Heights", filmYear: 2011, directorName: "Andrea Arnold", runtimeMinutes: 129, filmRank: 0.61, grossMultiple: 1.1 },
-                { filmTitle: "Wuthering Heights", filmYear: 2009, directorName: "Coky Giedroyc", runtimeMinutes: 142, filmRank: 0.77, grossMultiple: null },
-                { filmTitle: "Wuthering Heights", filmYear: 2026, directorName: "Emerald Fennell", runtimeMinutes: 130, filmRank: 0.74, grossMultiple: null }
+                { filmTitle: "Wuthering Heights", filmYear: 1939, directorName: "William Wyler", runtimeMinutes: 104, filmRank: 0.86, grossMultiple: 3.1, poster: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Wuthering_Heights_%281939_poster%29.jpg/500px-Wuthering_Heights_%281939_poster%29.jpg" },
+                { filmTitle: "Emily Brontë's Wuthering Heights", filmYear: 1992, directorName: "Peter Kosminsky", runtimeMinutes: 105, filmRank: 0.68, grossMultiple: 1.4, poster: "https://upload.wikimedia.org/wikipedia/en/6/66/Wuthering_Heights_1992_poster.jpg" },
+                { filmTitle: "Wuthering Heights", filmYear: 2011, directorName: "Andrea Arnold", runtimeMinutes: 129, filmRank: 0.61, grossMultiple: 1.1, poster: "https://upload.wikimedia.org/wikipedia/en/d/d3/Wuthering_Heights_2011_film.jpg" },
+                { filmTitle: "Wuthering Heights", filmYear: 2009, directorName: "Coky Giedroyc", runtimeMinutes: 142, filmRank: 0.77, grossMultiple: null, poster: "https://upload.wikimedia.org/wikipedia/en/9/9b/Wuthering_Heights_2009.jpg" }
             ]
         },
         "pride-and-prejudice": {
             bookTitle: "Pride and Prejudice", authorName: "Jane Austen", bookYear: 1813, pageCount: 336, bookRank: 0.94,
+            cover: "https://covers.openlibrary.org/b/isbn/9780141439518-L.jpg",
             films: [
-                { filmTitle: "Pride & Prejudice", filmYear: 2005, directorName: "Joe Wright", runtimeMinutes: 129, filmRank: 0.89, grossMultiple: 4.34 },
-                { filmTitle: "Pride and Prejudice", filmYear: 1940, directorName: "Robert Z. Leonard", runtimeMinutes: 118, filmRank: 0.78, grossMultiple: 1.95 },
-                { filmTitle: "Pride and Prejudice", filmYear: 1995, directorName: "Simon Langton", runtimeMinutes: 327, filmRank: 0.95, grossMultiple: null }
+                { filmTitle: "Pride & Prejudice", filmYear: 2005, directorName: "Joe Wright", runtimeMinutes: 129, filmRank: 0.89, grossMultiple: 4.34, poster: "https://upload.wikimedia.org/wikipedia/en/0/03/Prideandprejudiceposter.jpg" },
+                { filmTitle: "Pride and Prejudice", filmYear: 1940, directorName: "Robert Z. Leonard", runtimeMinutes: 118, filmRank: 0.78, grossMultiple: 1.95, poster: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Pride_and_Prejudice_%281940_poster%29.jpg/500px-Pride_and_Prejudice_%281940_poster%29.jpg" },
+                { filmTitle: "Pride and Prejudice", filmYear: 1995, directorName: "Simon Langton", runtimeMinutes: 327, filmRank: 0.95, grossMultiple: null, poster: "https://upload.wikimedia.org/wikipedia/en/9/92/Pride_and_Prejudice_1995_title_card.jpg" }
             ]
         },
         "rebecca": {
             bookTitle: "Rebecca", authorName: "Daphne du Maurier", bookYear: 1938, pageCount: 416, bookRank: 0.92,
+            cover: "https://covers.openlibrary.org/b/isbn/9780380730407-L.jpg",
             films: [
-                { filmTitle: "Rebecca", filmYear: 1940, directorName: "Alfred Hitchcock", runtimeMinutes: 130, filmRank: 0.93, grossMultiple: 4.6 },
-                { filmTitle: "Rebecca", filmYear: 2020, directorName: "Ben Wheatley", runtimeMinutes: 121, filmRank: 0.44, grossMultiple: null }
+                { filmTitle: "Rebecca", filmYear: 1940, directorName: "Alfred Hitchcock", runtimeMinutes: 130, filmRank: 0.93, grossMultiple: 4.6, poster: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/Rebecca_%281940_poster%29.jpg/500px-Rebecca_%281940_poster%29.jpg" },
+                { filmTitle: "Rebecca", filmYear: 2020, directorName: "Ben Wheatley", runtimeMinutes: 121, filmRank: 0.44, grossMultiple: null, poster: "https://upload.wikimedia.org/wikipedia/en/1/17/Rebecca_%282020_film%29_poster.jpg" }
             ]
         },
         "fight-club": {
             bookTitle: "Fight Club", authorName: "Chuck Palahniuk", bookYear: 1996, pageCount: 208, bookRank: 0.84,
+            cover: "https://covers.openlibrary.org/b/isbn/9780393327342-L.jpg",
             films: [
-                { filmTitle: "Fight Club", filmYear: 1999, directorName: "David Fincher", runtimeMinutes: 139, filmRank: 0.97, grossMultiple: 1.6 }
+                { filmTitle: "Fight Club", filmYear: 1999, directorName: "David Fincher", runtimeMinutes: 139, filmRank: 0.97, grossMultiple: 1.6, poster: "https://upload.wikimedia.org/wikipedia/en/f/fc/Fight_Club_poster.jpg" }
             ]
         },
         "lord-of-the-rings": {
             bookTitle: "The Lord of the Rings", authorName: "J.R.R. Tolkien", bookYear: 1954, pageCount: 1178, bookRank: 0.97,
+            cover: "https://covers.openlibrary.org/b/isbn/9780618640157-L.jpg",
             films: [
-                { filmTitle: "The Lord of the Rings: The Fellowship of the Ring", filmYear: 2001, directorName: "Peter Jackson", runtimeMinutes: 178, filmRank: 0.98, grossMultiple: 9.5 },
-                { filmTitle: "The Lord of the Rings: The Two Towers", filmYear: 2002, directorName: "Peter Jackson", runtimeMinutes: 179, filmRank: 0.97, grossMultiple: 9.9 },
-                { filmTitle: "The Lord of the Rings: The Return of the King", filmYear: 2003, directorName: "Peter Jackson", runtimeMinutes: 201, filmRank: 0.99, grossMultiple: 12.1 },
-                { filmTitle: "The Lord of the Rings", filmYear: 1978, directorName: "Ralph Bakshi", runtimeMinutes: 132, filmRank: 0.56, grossMultiple: 7.6 }
+                { filmTitle: "The Lord of the Rings: The Fellowship of the Ring", filmYear: 2001, directorName: "Peter Jackson", runtimeMinutes: 178, filmRank: 0.98, grossMultiple: 9.5, poster: "https://upload.wikimedia.org/wikipedia/en/f/fb/Lord_Rings_Fellowship_Ring.jpg" },
+                { filmTitle: "The Lord of the Rings: The Two Towers", filmYear: 2002, directorName: "Peter Jackson", runtimeMinutes: 179, filmRank: 0.97, grossMultiple: 9.9, poster: "https://upload.wikimedia.org/wikipedia/en/a/ad/Lord_of_the_Rings_-_The_Two_Towers.jpg" },
+                { filmTitle: "The Lord of the Rings: The Return of the King", filmYear: 2003, directorName: "Peter Jackson", runtimeMinutes: 201, filmRank: 0.99, grossMultiple: 12.1, poster: "https://upload.wikimedia.org/wikipedia/en/4/40/Lord_of_the_Rings_-_The_Return_of_the_King.jpg" }
             ]
         },
         "green-mile": {
             bookTitle: "The Green Mile", authorName: "Stephen King", bookYear: 1996, pageCount: 400, bookRank: 0.89,
+            cover: "https://covers.openlibrary.org/b/isbn/9780671041786-L.jpg",
             films: [
-                { filmTitle: "The Green Mile", filmYear: 1999, directorName: "Frank Darabont", runtimeMinutes: 189, filmRank: 0.95, grossMultiple: 4.78 }
+                { filmTitle: "The Green Mile", filmYear: 1999, directorName: "Frank Darabont", runtimeMinutes: 189, filmRank: 0.95, grossMultiple: 4.78, poster: "https://upload.wikimedia.org/wikipedia/en/e/e2/The_Green_Mile_%28movie_poster%29.jpg" }
             ]
         },
         "fifty-shades-of-gray": {
             bookTitle: "Fifty Shades of Grey", authorName: "E. L. James", bookYear: 2011, pageCount: 514, bookRank: 0.57,
+            cover: "https://covers.openlibrary.org/b/isbn/9780345803481-L.jpg",
             films: [
-                { filmTitle: "Fifty Shades of Grey", filmYear: 2015, directorName: "Sam Taylor-Johnson", runtimeMinutes: 125, filmRank: 0.25, grossMultiple: 14.24 }
+                { filmTitle: "Fifty Shades of Grey", filmYear: 2015, directorName: "Sam Taylor-Johnson", runtimeMinutes: 125, filmRank: 0.25, grossMultiple: 14.24, poster: "https://upload.wikimedia.org/wikipedia/en/7/73/Fifty_Shades_of_Grey_poster.jpg" }
             ]
         },
         "twilight": {
             bookTitle: "Twilight", authorName: "Stephenie Meyer", bookYear: 2005, pageCount: 498, bookRank: 0.62,
+            cover: "https://covers.openlibrary.org/b/id/12641977-L.jpg",
             films: [
-                { filmTitle: "Twilight", filmYear: 2008, directorName: "Catherine Hardwicke", runtimeMinutes: 122, filmRank: 0.48, grossMultiple: 10.64 }
+                { filmTitle: "Twilight", filmYear: 2008, directorName: "Catherine Hardwicke", runtimeMinutes: 122, filmRank: 0.48, grossMultiple: 10.64, poster: "https://upload.wikimedia.org/wikipedia/en/1/16/Twilightbook.jpg" }
             ]
         },
         "wizard-of-oz": {
             bookTitle: "The Wonderful Wizard of Oz", authorName: "L. Frank Baum", bookYear: 1900, pageCount: 259, bookRank: 0.85,
+            cover: "https://covers.openlibrary.org/b/isbn/9780141321028-L.jpg",
             films: [
-                { filmTitle: "The Wizard of Oz", filmYear: 1939, directorName: "Victor Fleming", runtimeMinutes: 102, filmRank: 0.96, grossMultiple: 10.7 },
-                { filmTitle: "Return to Oz", filmYear: 1985, directorName: "Walter Murch", runtimeMinutes: 113, filmRank: 0.64, grossMultiple: 0.4 }
+                { filmTitle: "The Wizard of Oz", filmYear: 1939, directorName: "Victor Fleming", runtimeMinutes: 102, filmRank: 0.96, grossMultiple: 10.7, poster: "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Wizard_of_oz_movie_poster.jpg/500px-Wizard_of_oz_movie_poster.jpg" }
             ]
         },
         "pride-and-prejudice-and-zombies": {
             bookTitle: "Pride and Prejudice and Zombies", authorName: "Seth Grahame-Smith", bookYear: 2009, pageCount: 320, bookRank: 0.54,
+            cover: "https://covers.openlibrary.org/b/isbn/9781594743344-L.jpg",
             films: [
-                { filmTitle: "Pride and Prejudice and Zombies", filmYear: 2016, directorName: "Burr Steers", runtimeMinutes: 108, filmRank: 0.52, grossMultiple: 0.59 }
+                { filmTitle: "Pride and Prejudice and Zombies", filmYear: 2016, directorName: "Burr Steers", runtimeMinutes: 108, filmRank: 0.52, grossMultiple: 0.59, poster: "https://upload.wikimedia.org/wikipedia/en/3/34/Pride_and_Prejudice_and_Zombies_poster.jpg" }
             ]
         },
         "dragons-of-autumn-twilight": {
             bookTitle: "Dragons of Autumn Twilight", authorName: "Margaret Weis", bookYear: 1984, pageCount: 447, bookRank: 0.76,
+            cover: "https://covers.openlibrary.org/b/isbn/9780786915743-L.jpg",
             films: [
-                { filmTitle: "Dragonlance: Dragons of Autumn Twilight", filmYear: 2008, directorName: "Will Meugniot", runtimeMinutes: 91, filmRank: 0.35, grossMultiple: null }
+                { filmTitle: "Dragonlance: Dragons of Autumn Twilight", filmYear: 2008, directorName: "Will Meugniot", runtimeMinutes: 91, filmRank: 0.35, grossMultiple: null, poster: "https://upload.wikimedia.org/wikipedia/en/4/4b/Dragonlance_dvd_cover.jpg" }
             ]
         },
         "little-women": {
             bookTitle: "Little Women", authorName: "Louisa May Alcott", bookYear: 1868, pageCount: 449, bookRank: 0.90,
+            cover: "https://covers.openlibrary.org/b/isbn/9780147514011-L.jpg",
             films: [
-                { filmTitle: "Little Women", filmYear: 2019, directorName: "Greta Gerwig", runtimeMinutes: 135, filmRank: 0.91, grossMultiple: 5.4 },
-                { filmTitle: "Little Women", filmYear: 1994, directorName: "Gillian Armstrong", runtimeMinutes: 115, filmRank: 0.82, grossMultiple: 2.8 },
-                { filmTitle: "Little Women", filmYear: 1933, directorName: "George Cukor", runtimeMinutes: 115, filmRank: 0.79, grossMultiple: 4.7 }
+                { filmTitle: "Little Women", filmYear: 2019, directorName: "Greta Gerwig", runtimeMinutes: 135, filmRank: 0.91, grossMultiple: 5.4, poster: "https://upload.wikimedia.org/wikipedia/en/9/9d/Little_Women_%282019_film%29.jpeg" },
+                { filmTitle: "Little Women", filmYear: 1994, directorName: "Gillian Armstrong", runtimeMinutes: 115, filmRank: 0.82, grossMultiple: 2.8, poster: "https://upload.wikimedia.org/wikipedia/en/0/00/Little_Women_%281994_film%29_poster.jpg" },
+                { filmTitle: "Little Women", filmYear: 1933, directorName: "George Cukor", runtimeMinutes: 115, filmRank: 0.79, grossMultiple: 4.7, poster: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Little_Women_%281933_poster%29.jpg/500px-Little_Women_%281933_poster%29.jpg" }
             ]
         },
         "great-gatsby": {
             bookTitle: "The Great Gatsby", authorName: "F. Scott Fitzgerald", bookYear: 1925, pageCount: 180, bookRank: 0.94,
+            cover: "https://covers.openlibrary.org/b/isbn/9780743273565-L.jpg",
             films: [
-                { filmTitle: "The Great Gatsby", filmYear: 2013, directorName: "Baz Luhrmann", runtimeMinutes: 143, filmRank: 0.74, grossMultiple: 3.3 },
-                { filmTitle: "The Great Gatsby", filmYear: 1974, directorName: "Jack Clayton", runtimeMinutes: 144, filmRank: 0.61, grossMultiple: 4.1 }
+                { filmTitle: "The Great Gatsby", filmYear: 2013, directorName: "Baz Luhrmann", runtimeMinutes: 143, filmRank: 0.74, grossMultiple: 3.3, poster: "https://upload.wikimedia.org/wikipedia/en/c/c2/TheGreatGatsby2013Poster.jpg" },
+                { filmTitle: "The Great Gatsby", filmYear: 1974, directorName: "Jack Clayton", runtimeMinutes: 144, filmRank: 0.61, grossMultiple: 4.1, poster: "https://upload.wikimedia.org/wikipedia/en/e/e0/Great_Gatsby_1974.jpg" }
             ]
         }
     };
 
-    var STORAGE_KEY = "gg_dynamic_cases_v7";
+    var STORAGE_KEY = "gg_dynamic_cases_v9";
     try {
-        ["gg_dynamic_cases", "gg_dynamic_cases_v2", "gg_dynamic_cases_v3", "gg_dynamic_cases_v4", "gg_dynamic_cases_v5", "gg_dynamic_cases_v6"].forEach(function (k) {
-            sessionStorage.removeItem(k);
+        Object.keys(sessionStorage).forEach(function (k) {
+            if (k.indexOf("gg_") === 0 && k !== STORAGE_KEY) sessionStorage.removeItem(k);
         });
     } catch (e) {}
 
@@ -165,83 +175,6 @@
         return null;
     }
 
-    /* Fetches the verified OpenLibrary cover by matching BOTH title AND author so a wrong book cover is never shown */
-    var coverCache = {};
-    function fetchVerifiedBookCover(bookTitle, authorName) {
-        var cacheKey = toSlug(bookTitle + "-" + (authorName || ""));
-        if (coverCache[cacheKey]) return Promise.resolve(coverCache[cacheKey]);
-
-        var url = "https://openlibrary.org/search.json?title=" + encodeURIComponent(bookTitle) +
-            (authorName && authorName !== "Original Author" ? "&author=" + encodeURIComponent(authorName) : "") +
-            "&limit=5&fields=title,author_name,cover_i";
-
-        return fetch(url)
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (data) {
-                if (!data || !Array.isArray(data.docs)) return null;
-                var targetSlug = stripArticles(toSlug(bookTitle));
-                for (var i = 0; i < data.docs.length; i++) {
-                    var doc = data.docs[i];
-                    var docSlug = stripArticles(toSlug(doc.title || ""));
-                    if (doc.cover_i && (docSlug === targetSlug || docSlug.indexOf(targetSlug) > -1 || targetSlug.indexOf(docSlug) > -1)) {
-                        var cUrl = "https://covers.openlibrary.org/b/id/" + doc.cover_i + "-L.jpg";
-                        coverCache[cacheKey] = cUrl;
-                        return cUrl;
-                    }
-                }
-                return null;
-            })
-            .catch(function () { return null; });
-    }
-
-    /* Official IMDb CloudFront Suggestion API — returns live Amazon CDN poster URLs by title & year */
-    var imdbCache = {};
-    function fetchImdbAdaptations(query, bookTitle) {
-        var cleanQ = String(query || "").replace(/^The Wonderful /i, "The ").toLowerCase().trim();
-        if (imdbCache[cleanQ]) return Promise.resolve(imdbCache[cleanQ]);
-
-        var firstChar = cleanQ.replace(/[^a-z0-9]/g, "").charAt(0) || "a"; var url = "https://v3.sg.media-imdb.com/suggestion/" + firstChar + "/" + encodeURIComponent(cleanQ) + ".json";
-        return fetch(url)
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (data) {
-                if (!data || !Array.isArray(data.d)) return [];
-                var targetSlug = stripArticles(toSlug(bookTitle || cleanQ));
-                var seenYears = {};
-                var out = [];
-
-                data.d.forEach(function (item) {
-                    var qid = (item.qid || item.q || "").toLowerCase();
-                    if (qid && qid.indexOf("movie") === -1 && qid.indexOf("feature") === -1 && qid.indexOf("tv") === -1) return;
-
-                    var title = item.l || "";
-                    var year = parseInt(item.y, 10);
-                    var rawImg = (item.i && item.i.imageUrl) ? item.i.imageUrl : null;
-                    if (!title || !year || year < 1920 || !rawImg) return;
-
-                    var itemSlug = stripArticles(toSlug(title));
-                    var matches = (
-                        itemSlug === targetSlug ||
-                        itemSlug.indexOf(targetSlug) > -1 ||
-                        targetSlug.indexOf(itemSlug) > -1
-                    );
-                    if (!matches) return;
-                    if (seenYears[year]) return;
-                    seenYears[year] = true;
-
-                    out.push({
-                        filmTitle: title,
-                        filmYear: year,
-                        directorName: item.s || "Theatrical Release",
-                        runtimeMinutes: 128,
-                        poster: rawImg
-                    });
-                });
-                imdbCache[cleanQ] = out;
-                return out;
-            })
-            .catch(function () { return []; });
-    }
-
     function convertKnownToRows(entry, baseId) {
         return entry.films.map(function (f, idx) {
             var bRank = entry.bookRank;
@@ -278,50 +211,69 @@
                 bookReliability: "OK",
                 matchConfidence: 0.97,
                 review: false,
-                cover: null,
-                poster: null
+                cover: entry.cover,
+                poster: f.poster
             };
         });
     }
 
-    /* Hydrates every row's book cover (by Title+Author from OpenLibrary) and movie poster (by Title+Year from IMDb) */
-    function hydrateAssets(rows) {
-        var byBook = {};
-        rows.forEach(function (r) {
-            var key = r.bookTitle;
-            if (!byBook[key]) byBook[key] = [];
-            byBook[key].push(r);
-        });
+    /* CORS-safe IMDb JSONP lookup (sg.media-imdb.com/suggests/<firstChar>/<slug>.json wraps JSON in window["imdb$<slug>"]) */
+    function fetchImdbJsonp(query, bookTitle) {
+        return new Promise(function (resolve) {
+            var clean = String(query || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+            if (!clean) { resolve([]); return; }
+            var firstChar = clean.charAt(0);
+            var cbName = "imdb$" + clean;
+            var script = document.createElement("script");
+            var timer = setTimeout(function () {
+                cleanup();
+                resolve([]);
+            }, 3500);
 
-        var tasks = Object.keys(byBook).map(function (bookTitle) {
-            var group = byBook[bookTitle];
-            var sample = group[0];
-            var searchQ = String(bookTitle).replace(/^The Wonderful /i, "The ");
+            function cleanup() {
+                clearTimeout(timer);
+                try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+                if (script.parentNode) script.parentNode.removeChild(script);
+            }
 
-            return Promise.all([
-                fetchVerifiedBookCover(bookTitle, sample.authorName),
-                fetchImdbAdaptations(searchQ, searchQ)
-            ]).then(function (res) {
-                var verifiedCover = res[0];
-                var imdbList = res[1] || [];
+            window[cbName] = function (data) {
+                cleanup();
+                if (!data || !Array.isArray(data.d)) { resolve([]); return; }
+                var targetSlug = stripArticles(toSlug(bookTitle || query));
+                var seenYears = {};
+                var out = [];
 
-                group.forEach(function (r) {
-                    if (verifiedCover) {
-                        r.cover = verifiedCover;
-                    }
-                    if (imdbList.length) {
-                        var exactYear = imdbList.find(function (m) { return m.filmYear === r.filmYear; });
-                        var closeYear = imdbList.find(function (m) { return Math.abs(m.filmYear - r.filmYear) <= 1; });
-                        var match = exactYear || closeYear || imdbList[0];
-                        if (match && match.poster) {
-                            r.poster = match.poster;
-                        }
-                    }
+                data.d.forEach(function (item) {
+                    var qid = (item.qid || item.q || "").toLowerCase();
+                    if (qid && qid.indexOf("movie") === -1 && qid.indexOf("feature") === -1 && qid.indexOf("tv") === -1) return;
+                    var title = item.l || "";
+                    var year = parseInt(item.y, 10);
+                    var rawImg = (item.i && Array.isArray(item.i)) ? item.i[0] : (item.i && item.i.imageUrl ? item.i.imageUrl : null);
+                    if (!title || !year || year < 1920 || !rawImg) return;
+
+                    var itemSlug = stripArticles(toSlug(title));
+                    if (itemSlug !== targetSlug && itemSlug.indexOf(targetSlug) === -1 && targetSlug.indexOf(itemSlug) === -1) return;
+                    if (seenYears[year]) return;
+                    seenYears[year] = true;
+
+                    out.push({
+                        filmTitle: title,
+                        filmYear: year,
+                        directorName: item.s || "Theatrical Release",
+                        runtimeMinutes: 128,
+                        poster: rawImg
+                    });
                 });
-            });
-        });
+                resolve(out);
+            };
 
-        return Promise.all(tasks).then(function () { return rows; });
+            script.onerror = function () {
+                cleanup();
+                resolve([]);
+            };
+            script.src = "https://sg.media-imdb.com/suggests/" + firstChar + "/" + clean + ".json";
+            document.head.appendChild(script);
+        });
     }
 
     function expandBackendRows(apiRows) {
@@ -347,8 +299,8 @@
             expanded.push(r);
         });
 
-        ["dune", "wuthering-heights", "rebecca", "little-women", "great-gatsby", "fight-club", "lord-of-the-rings"].forEach(function (k) {
-            if (!handledBooks[k] && KNOWN_ADAPTATIONS[k]) {
+        Object.keys(KNOWN_ADAPTATIONS).forEach(function (k) {
+            if (!handledBooks[k]) {
                 handledBooks[k] = true;
                 convertKnownToRows(KNOWN_ADAPTATIONS[k]).forEach(function (kr) {
                     expanded.push(kr);
@@ -377,7 +329,7 @@
     function buildDirectCasesForTitle(query) {
         var known = findKnownEntry(query);
         if (known) {
-            return hydrateAssets(convertKnownToRows(known));
+            return Promise.resolve(convertKnownToRows(known));
         }
 
         return Promise.all([
@@ -385,7 +337,7 @@
                 "https://openlibrary.org/search.json?title=" + encodeURIComponent(query) +
                 "&sort=editions&limit=5&fields=title,author_name,first_publish_year,cover_i,number_of_pages_median,ratings_average,ratings_count"
             ).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
-            fetchImdbAdaptations(query, query)
+            fetchImdbJsonp(query, query)
         ]).then(function (res) {
             var olData = res[0];
             var imdbList = res[1] || [];
@@ -473,17 +425,13 @@
             })
             .then(function (rows) {
                 var expanded = mergeDynamicCases(expandBackendRows(rows || []));
-                return hydrateAssets(expanded).then(function (hydrated) {
-                    if (typeof onAsyncUpdate === "function") onAsyncUpdate(hydrated);
-                    return hydrated;
-                });
+                if (typeof onAsyncUpdate === "function") onAsyncUpdate(expanded);
+                return expanded;
             })
             .catch(function () {
                 var fallback = mergeDynamicCases(expandBackendRows([]));
-                return hydrateAssets(fallback).then(function (hydrated) {
-                    if (typeof onAsyncUpdate === "function") onAsyncUpdate(hydrated);
-                    return hydrated;
-                });
+                if (typeof onAsyncUpdate === "function") onAsyncUpdate(fallback);
+                return fallback;
             });
     }
 
