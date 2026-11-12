@@ -200,7 +200,7 @@
         var cleanQ = String(query || "").replace(/^The Wonderful /i, "The ").toLowerCase().trim();
         if (imdbCache[cleanQ]) return Promise.resolve(imdbCache[cleanQ]);
 
-        var url = "https://v3.sg.media-imdb.com/suggestion/x/" + encodeURIComponent(cleanQ) + ".json";
+        var firstChar = cleanQ.replace(/[^a-z0-9]/g, "").charAt(0) || "a"; var url = "https://v3.sg.media-imdb.com/suggestion/" + firstChar + "/" + encodeURIComponent(cleanQ) + ".json";
         return fetch(url)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {

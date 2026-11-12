@@ -160,7 +160,7 @@
                 var raw = (qInput && qInput.value || "").trim();
                 if (!raw) return;
                 e.preventDefault();
-                window.GG.load().then(function (rows) {
+                window.GG.load(function (updated) { if (document.querySelector(".casehero")) renderCaseDetail(updated); }).then(function (rows) {
                     var matches = rows.filter(function (r) { return matchesQuery(r, raw); });
                     if (matches.length === 1) {
                         window.location.href = "case.html?id=" + matches[0].linkId;
