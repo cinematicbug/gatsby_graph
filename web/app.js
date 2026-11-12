@@ -402,7 +402,7 @@ draw();
                 ? '<img referrerpolicy="no-referrer" src="' + escapeHtml(current.cover) + '" width="317" height="500" alt="Cover of ' + escapeHtml(current.bookTitle) + '" data-fallback-title="' + escapeHtml(current.bookTitle) + '" data-fallback-aspect="317/500" data-fallback-color="var(--type-70)">'
                 : '<div style="aspect-ratio:317/500;display:grid;place-items:center;padding:24px;text-align:center;font-family:var(--display);font-size:26px;color:var(--type-70)">' + escapeHtml(current.bookTitle) + "</div>";
 
-            var posterUrl = current.poster || null;
+            var posterUrl = (current.poster && current.poster !== current.cover) ? current.poster : null;
             var filmImgHtml = posterUrl
                 ? '<img referrerpolicy="no-referrer" src="' + escapeHtml(posterUrl) + '" width="259" height="384" alt="Poster for ' + escapeHtml(current.filmTitle) + '" data-fallback-title="' + escapeHtml(current.filmTitle) + '" data-fallback-aspect="259/384" data-fallback-color="var(--support)">'
                 : '<div style="aspect-ratio:259/384;display:grid;place-items:center;padding:24px;text-align:center;font-family:var(--display);font-size:26px;color:var(--support)">' + escapeHtml(current.filmTitle) + "</div>";

@@ -127,7 +127,7 @@
         }
     };
 
-    var STORAGE_KEY = "gg_dynamic_cases_v18";
+    var STORAGE_KEY = "gg_dynamic_cases_v19";
     var dynamicClientCases = [];
     try {
         Object.keys(sessionStorage).forEach(function (k) {
@@ -194,56 +194,57 @@
 
     /* 1. Native-CORS Wikipedia REST v1 Search API (<200ms in India, returns film adaptations + posters + years) */
     function fetchWikiFilmAdaptations(query, bookTitle) {
-        var url = "https://en.wikipedia.org/w/rest.php/v1/search/page?q=" + encodeURIComponent(query + " film") + "&limit=8";
-        return safeFetchJson(url, 2500).then(function (data) {
+        var searchUrl = "https://en.wikipedia.org/w/rest.php/v1/search/page?q=" + encodeURIComponent(query + " film") + "&limit=6";
+        return safeFetchJson(searchUrl, 2500).then(function (data) {
             if (!data || !Array.isArray(data.pages)) return [];
             var targetSlug = stripArticles(toSlug(bookTitle || query));
-            var out = [];
-            var seenYears = {};
 
-            data.pages.forEach(function (p) {
+            /* Filter search hits to actual film pages matching the book title */
+            var candidates = data.pages.filter(function (p) {
                 var rawTitle = p.title || "";
-                var desc = (p.description || "") + " " + (p.excerpt || "");
-                /* Extract release year from title e.g. "Carrie (1976 film)" or description e.g. "1996 film by Danny Boyle" */
-                var yearMatch = rawTitle.match(/\((\d{4})\s*film\)/i) || desc.match(/\b(19\d{2}|20\d{2})\b[^.]*?\b(film|movie|directed|adaptation)\b/i) || desc.match(/\b(film|movie)\b[^.]*?\b(19\d{2}|20\d{2})\b/i);
-                var year = null;
-                if (yearMatch) {
-                    year = parseInt(yearMatch[1], 10);
-                    if (isNaN(year) || year < 1920) year = parseInt(yearMatch[2], 10);
-                }
+                var desc = ((p.description || "") + " " + (p.excerpt || "")).toLowerCase();
+                if (rawTitle.indexOf("(film)") === -1 && rawTitle.indexOf("film)") === -1 && desc.indexOf("film") === -1) return false;
+                var cleanTitle = rawTitle.replace(/\s*\([^)]*film[^)]*\)/gi, "").trim();
+                var itemSlug = stripArticles(toSlug(cleanTitle));
+                return (itemSlug === targetSlug || itemSlug.indexOf(targetSlug) > -1 || targetSlug.indexOf(itemSlug) > -1);
+            }).slice(0, 4);
 
-                var cleanFilmTitle = rawTitle.replace(/\s*\(\d{4}\s*film\)/i, "").replace(/\s*\(film\)/i, "").trim();
-                var itemSlug = stripArticles(toSlug(cleanFilmTitle));
-                if (itemSlug !== targetSlug && itemSlug.indexOf(targetSlug) === -1 && targetSlug.indexOf(itemSlug) === -1) return;
+            /* Fetch /api/rest_v1/page/summary/<key> for each film page to get fair-use poster + director + year */
+            return Promise.all(candidates.map(function (c) {
+                var sumUrl = "https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(c.key || c.title.replace(/\s+/g, "_"));
+                return safeFetchJson(sumUrl, 2500);
+            })).then(function (summaries) {
+                var out = [];
+                var seenYears = {};
+                summaries.forEach(function (s) {
+                    if (!s || !s.title) return;
+                    var text = (s.title || "") + " " + (s.description || "") + " " + (s.extract || "");
+                    var ym = s.title.match(/\((\d{4})\s*film\)/i) || text.match(/\b(19\d{2}|20\d{2})\b/);
+                    var year = ym ? parseInt(ym[1], 10) : null;
+                    if (!year || year < 1920) return;
 
-                var thumbUrl = (p.thumbnail && p.thumbnail.url)
-                    ? (p.thumbnail.url.indexOf("//") === 0 ? "https:" + p.thumbnail.url : p.thumbnail.url).replace(/\/\d+px-/, "/500px-")
-                    : null;
+                    var dm = text.match(/directed by\s+([A-Z][a-zA-Z\s.\-']+?)(?:\s+and\s+|\s*[,.;(]|\s+from\s+|\s+based\s+|\s+starring\s+)/i) ||
+                             text.match(/film by\s+([A-Z][a-zA-Z\s.\-']+?)(?:\s*[,.;(]|$)/i);
+                    var director = dm ? dm[1].trim() : "Theatrical Release";
 
-                /* Extract director if mentioned in description e.g. "1996 film by Danny Boyle" or "directed by Brian De Palma" */
-                var dirMatch = (p.description || "").match(/(?:directed by|film by)\s+([A-Z][a-zA-Z\s.\-']+)/i);
-                var director = dirMatch ? dirMatch[1].trim() : "Theatrical Release";
+                    var poster = (s.thumbnail && s.thumbnail.source)
+                        ? s.thumbnail.source.replace(/\/\d+px-/, "/500px-")
+                        : ((s.originalimage && s.originalimage.source) ? s.originalimage.source : null);
 
-                if (year && thumbUrl && !seenYears[year]) {
-                    seenYears[year] = true;
-                    out.push({
-                        filmTitle: cleanFilmTitle,
-                        filmYear: year,
-                        directorName: director,
-                        runtimeMinutes: 118,
-                        poster: thumbUrl
-                    });
-                } else if (thumbUrl && !out.length) {
-                    out.push({
-                        filmTitle: cleanFilmTitle,
-                        filmYear: year || 1996,
-                        directorName: director,
-                        runtimeMinutes: 118,
-                        poster: thumbUrl
-                    });
-                }
+                    var cleanFilmTitle = s.title.replace(/\s*\([^)]*film[^)]*\)/gi, "").trim();
+                    if (!seenYears[year]) {
+                        seenYears[year] = true;
+                        out.push({
+                            filmTitle: cleanFilmTitle,
+                            filmYear: year,
+                            directorName: director,
+                            runtimeMinutes: 118,
+                            poster: poster
+                        });
+                    }
+                });
+                return out;
             });
-            return out;
         });
     }
 
@@ -462,7 +463,7 @@
             var shrunkBook = ((olVotes + 15) / (olVotes + 65.0)) * olRating + (50.0 / (olVotes + 65.0)) * 3.92;
             var bRank = Math.max(0.12, Math.min(0.98, (shrunkBook - 3.10) / (4.55 - 3.10)));
 
-            var fallbackPoster = (wikiFilms[0] && wikiFilms[0].poster) || (imdbFilms[0] && imdbFilms[0].poster) || cover;
+            var fallbackPoster = (wikiFilms[0] && wikiFilms[0].poster) || (imdbFilms[0] && imdbFilms[0].poster) || null;
 
             if (!combinedFilms.length) {
                 combinedFilms.push({
