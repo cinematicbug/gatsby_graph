@@ -498,3 +498,27 @@
         label: function (cat) { return CATEGORY_LABEL[cat] || "dead heat"; }
     };
 })();
+
+/* ==========================================================================
+   Bulletproof /api/sync Interceptor for Static & Local Mode
+   Intercepts fetch("/api/sync?title=...") from app.js so Sync NEVER hangs
+   ========================================================================== */
+(function () {
+    var origFetch = window.fetch;
+    window.fetch = function (input, init) {
+        var url = typeof input === "string" ? input : (input && input.url ? input.url : "");
+        if (url.indexOf("api/sync") > -1) {
+            var m = url.match(/[?&]title=([^&]+)/);
+            var q = m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+            if (window.GG && typeof window.GG.syncTitle === "function" && q) {
+                return window.GG.syncTitle(q).then(function (rows) {
+                    return new Response(JSON.stringify({ ok: true, count: (rows || []).length }), {
+                        status: 200,
+                        headers: { "Content-Type": "application/json" }
+                    });
+                });
+            }
+        }
+        return origFetch.apply(this, arguments);
+    };
+})();
